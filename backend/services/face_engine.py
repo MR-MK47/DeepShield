@@ -7,7 +7,15 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from typing import List
+
+# Limit OpenMP threads to 1 to prevent memory spikes in resource-constrained environments (e.g., 512MB RAM)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import numpy as np
 from PIL import Image
@@ -15,13 +23,13 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 # InsightFace singleton — loaded once per process.
-# We use buffalo_l (tiny but accurate) to keep memory low.
+# We use buffalo_sc (16MB lightweight model) to fit within 512MB RAM limits.
 try:
     from insightface.app import FaceAnalysis
-    _face_app = FaceAnalysis(name="buffalo_l", root=".insightface")
+    _face_app = FaceAnalysis(name="buffalo_sc", root=".insightface")
     _face_app.prepare(ctx_id=0, det_size=(640, 640))
     _FACE_ENGINE_AVAILABLE = True
-    logger.info("insightface buffalo_l model loaded (512-D ArcFace embeddings)")
+    logger.info("insightface buffalo_sc model loaded (512-D ArcFace embeddings)")
 except Exception as exc:  # pragma: no cover — graceful degrade
     logger.warning("insightface unavailable: %s — falling back to pHash vectors", exc)
     _face_app = None
