@@ -27,19 +27,20 @@ app = FastAPI(
     version="0.2.0",
 )
 
-import os
-
-# CORS middleware configuration supporting environment variable override
-cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:3000")
-allowed_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
-if "http://localhost:3000" not in allowed_origins:
-    allowed_origins.append("http://localhost:3000")
+# CORS middleware configuration supporting environment variable override or wildcard
+cors_origins_raw = os.getenv("CORS_ORIGINS", "*")
+if cors_origins_raw.strip() == "*":
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+    if "http://localhost:3000" not in allowed_origins:
+        allowed_origins.append("http://localhost:3000")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
