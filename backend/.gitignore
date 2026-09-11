@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+ENV/
+env/
+
+# InsightFace Models & Heavy AI Weights (Over 100MB)
+.insightface/
+*.onnx
+*.zip
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Generated PDFs
+*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
