@@ -78,7 +78,10 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
       )
       setShowReview(false)
     } catch (error) {
-      setDispatchError(error instanceof Error ? error.message : 'Notice dispatch failed.')
+      // A transport error can leave provider acceptance uncertain. Clear this
+      // one-time preview so it cannot be resent without a fresh review.
+      setPreview(null)
+      setDispatchError(error instanceof Error ? error.message : 'Notice dispatch failed. Check provider activity before retrying.')
     } finally {
       setDispatchLoading(false)
     }
