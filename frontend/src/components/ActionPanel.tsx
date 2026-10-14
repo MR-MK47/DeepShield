@@ -57,7 +57,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
   const missingEvidence = selectedMatches.some(match => !match.hash_signature)
   const canReviewNotice = ready && count === 1
   const targetUrl = selectedMatches[0]?.url || ''
-  const targetDomain = selectedMatches[0]?.domain || getHost(targetUrl)
+  const targetDomain = getHost(targetUrl)
 
   const findContacts = async (url: string) => {
     if (!url || contactSearchLoading) return
@@ -95,6 +95,8 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
     setDispatchError('')
     setDispatchMessage('')
     setVictimName('')
+    contactRequestSequence.current += 1
+    setContactSearchLoading(false)
     setRecipient('')
     recipientEdited.current = false
     setContactSuggestions([])
@@ -106,6 +108,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
 
   const closeReview = () => {
     contactRequestSequence.current += 1
+    setContactSearchLoading(false)
     setShowReview(false)
     setPreview(null)
   }
