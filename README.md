@@ -19,7 +19,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Python 3.11 recommended.
 - Node.js 18.17+ (Node 20 LTS recommended) and npm.
 - Network access is needed for public image search. Real ArcFace analysis may download InsightFace model files on first use; without a usable model, the API can fall back to pHash.
-- A Resend API key and verified sender are required to send real notices. A configured key does not guarantee that a platform accepts or acts on a notice.
+- The default NOTICE_EMAIL_MODE=mock exercises the preview/confirmation flow without sending email. Live sending requires NOTICE_EMAIL_MODE=resend, a valid Resend API key, a verified sender, and explicitly configured, independently verified platform recipient addresses. A provider acceptance does not guarantee platform action.
 
 ## Setup on Windows
 
@@ -37,7 +37,7 @@ copy .env.example .env
 uvicorn main:app --reload --port 8000
 ~~~
 
-Edit backend/.env before enabling email. Configure RESEND_API_KEY, RESEND_FROM_EMAIL, CORS_ORIGINS and verified platform recipient addresses. The API refuses to simulate successful email delivery when the key is absent. Never commit your real .env.
+For ordinary local testing, keep NOTICE_EMAIL_MODE=mock: you can exercise the full notice preview/confirmation workflow, and the interface will clearly say that no email was sent. To enable a real external email, deliberately set NOTICE_EMAIL_MODE=resend and configure RESEND_API_KEY, RESEND_FROM_EMAIL, CORS_ORIGINS, plus the relevant verified platform contact (META_GRIEVANCE_EMAIL, GOOGLE_ABUSE_EMAIL, X_ABUSE_EMAIL or TIKTOK_LEGAL_EMAIL). Missing/unverified contacts block live delivery. Never commit your real .env.
 
 For a quick offline-safe smoke test without downloading a face model, set DEEPSHIELD_DISABLE_FACE_MODEL=1 in the terminal before starting the backend. This uses pHash fallback and is **not** a test of ArcFace accuracy.
 
@@ -111,7 +111,7 @@ npm run lint
 npm run build
 ~~~
 
-The automated tests use mocked email-provider responses and do not send real emails. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
+The default local test mode never sends real emails. Automated tests also mock the provider and do not send external messages. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
 
 ## API endpoints
 
