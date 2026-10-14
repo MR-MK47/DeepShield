@@ -216,3 +216,34 @@ def test_default_test_mode_never_sends_email():
     )
     assert result["status"] == "simulated_not_sent"
     assert result["id"] == "local_test_no_email_sent"
+
+
+def test_legacy_legal_notice_route_is_a_no_send_preview():
+    response = client.post(
+        "/api/legal-notice",
+        headers=auth_headers(),
+        json={
+            "target_url": "https://example.com/candidate.jpg",
+            "platform": "Meta",
+            "victim_name": "Test User",
+            "hash_signature": "sha256:" + "c" * 64,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["delivery_mode"] == "mock"
+    assert "no email will be sent" in body["recipient"].lower()
+    assert body["preview_id"]
+
+
+def test_notice_preview_rejects_local_network_url():
+    response = client.post(
+        "/api/takedown/preview",
+        headers=auth_headers(),
+        json={
+            "target_url": "http://127.0.0.1/admin",
+            "platform": "Meta",
+            "hash_signature": "sha256:" + "c" * 64,
+        },
+    )
+    assert response.status_code == 422
