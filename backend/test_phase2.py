@@ -121,3 +121,59 @@ def test_cors_preflight_for_local_frontend():
     )
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_combined_scan_endpoint_analyzes_and_searches(monkeypatch, sample_image_bytes):
+    expected = [{
+        "url": "https://example.com/combined.jpg",
+        "domain": "example.com",
+        "similarity": 0.81,
+        "thumbnail": "https://example.com/combined.jpg",
+        "hash_signature": "sha256:" + "a" * 64,
+    }]
+    monkeypatch.setattr(main, "search_deepfake_candidates", lambda **kwargs: expected)
+    response = client.post(
+        "/api/scan",
+        files={"file": ("reference.png", sample_image_bytes, "image/png")},
+        data={"query_text": "demo subject", "threshold": "0.3"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["analysis"]["hash_kind"] in {"pdq", "phash"}
+    assert body["matches"][0]["url"] == expected[0]["url"]
+    assert body["history_saved"] is False
+
+
+def test_match_history_is_opt_in_private_and_deletable(monkeypatch):
+    expected = [{
+        "url": "https://example.com/history.jpg",
+        "domain": "example.com",
+        "similarity": 0.81,
+        "thumbnail": "https://example.com/history.jpg",
+        "hash_signature": "sha256:" + "b" * 64,
+    }]
+    monkeypatch.setattr(main, "search_deepfake_candidates", lambda **kwargs: expected)
+    body = {"vector": [1.0 / np.sqrt(512)] * 512, "query_text": "history test", "threshold": 0.3, "save_history": True}
+    denied = client.post("/api/search", json=body)
+    assert denied.status_code == 401
+
+    headers = auth_headers()
+    response = client.post("/api/search", headers=headers, json=body)
+    assert response.status_code == 200, response.text
+    history_response = client.get("/api/matches", headers=headers)
+    assert history_response.status_code == 200, history_response.text
+    history = history_response.json()
+    assert len(history) == 1
+    assert history[0]["query_text"] == "history test"
+    assert history[0]["matches"][0]["hash_signature"] == expected[0]["hash_signature"]
+    assert "vector" not in history[0]
+    assert "image_bytes" not in history[0]
+
+    other_headers = auth_headers()
+    denied_delete = client.delete(f"/api/matches/{history[0]['scan_id']}", headers=other_headers)
+    assert denied_delete.status_code == 404
+
+    deleted = client.delete(f"/api/matches/{history[0]['scan_id']}", headers=headers)
+    assert deleted.status_code == 200
+    assert client.get("/api/matches", headers=headers).json() == []
