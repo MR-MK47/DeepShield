@@ -61,7 +61,7 @@ def test_send_notice_refuses_missing_or_placeholder_api_key():
 
 
 def test_send_notice_with_mocked_resend():
-    service = LegalEmail(api_key="re_test_key_for_mocking_only")
+    service = LegalEmail(api_key="re_test_key_for_mocking_only", mode="resend")
     with patch("resend.Emails.send", return_value={"id": "resend_email_id_999"}) as mock_send:
         result = service.send_notice(
             to_email="abuse@example.test",
@@ -94,6 +94,7 @@ def test_dispatch_endpoint_requires_a_live_preview():
 
 
 def test_notice_preview_returns_recipient_and_never_sends(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "resend")
     monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Meta", "meta-test-recipient@example.test")
     headers = auth_headers()
     with patch("main.legal_email_service.send_notice") as send:
@@ -118,12 +119,14 @@ def test_notice_preview_returns_recipient_and_never_sends(monkeypatch):
 
 
 def test_notice_preview_refuses_missing_verified_contact(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "resend")
     monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Google", "")
     response = create_preview(auth_headers(), platform="Google")
     assert response.status_code == 503
 
 
 def test_takedown_endpoint_uses_only_reviewed_preview(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "resend")
     monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Meta", "meta-test-recipient@example.test")
     headers = auth_headers()
     preview = create_preview(headers)
@@ -157,6 +160,7 @@ def test_takedown_endpoint_uses_only_reviewed_preview(monkeypatch):
 
 
 def test_preview_cannot_be_used_by_a_different_operator(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "resend")
     monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Meta", "meta-test-recipient@example.test")
     preview = create_preview(auth_headers())
     assert preview.status_code == 200
@@ -186,6 +190,7 @@ def test_unknown_platform_is_rejected_before_preview():
 
 
 def test_provider_error_is_returned_as_gateway_error(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "resend")
     monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "TikTok", "tiktok-test-recipient@example.test")
     headers = auth_headers()
     preview = create_preview(headers, platform="TikTok")
@@ -198,3 +203,16 @@ def test_provider_error_is_returned_as_gateway_error(monkeypatch):
         )
     assert response.status_code == 502
     assert "provider unavailable" in response.json()["detail"]
+
+
+def test_default_test_mode_never_sends_email():
+    service = LegalEmail(api_key="not-a-real-key", mode="mock")
+    result = service.send_notice(
+        to_email="LOCAL TEST MODE — no email will be sent",
+        victim_name="Test User",
+        platform_name="Meta",
+        content_url="https://example.com/candidate.jpg",
+        hash_signature="sha256:" + "1" * 64,
+    )
+    assert result["status"] == "simulated_not_sent"
+    assert result["id"] == "local_test_no_email_sent"
