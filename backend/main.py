@@ -353,6 +353,32 @@ async def generate_cybercrime_dossier(
         raise HTTPException(status_code=500, detail="PDF dossier generation failed. Check server logs.") from exc
 
 
+@app.post("/api/email/test")
+async def send_operator_email_test(
+    user: dict = Depends(_current_user),
+) -> dict:
+    """Send one real SMTP test message to the signed-in operator's own profile email."""
+    if legal_email_service.mode != "smtp":
+        raise HTTPException(
+            status_code=409,
+            detail="To send a real mailbox test, set NOTICE_EMAIL_MODE=smtp and configure SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL in backend/.env.",
+        )
+    try:
+        result = legal_email_service.send_test_email(
+            to_email=user["email"],
+            operator_name=user["name"],
+        )
+    except RuntimeError as exc:
+        logger.warning("Operator SMTP test failed for operator_id=%s: %s", user["id"], exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "status": result["status"],
+        "recipient": result["recipient"],
+        "timestamp": result["timestamp"],
+        "message_id": result["id"],
+    }
+
+
 @app.post("/api/takedown/contact-suggestions")
 async def get_takedown_contact_suggestions(
     request: ContactDiscoveryRequest,
