@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Optional
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
@@ -27,6 +27,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 from services.auth import AuthError, AuthService
+from services.contact_discovery import discover_public_contacts
 from services.face_engine import extract_face_vector_with_kind
 from services.hash_engine import HashEngine
 from services.legal_email import LegalEmail
@@ -63,15 +64,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
-
-Platform = Literal["Meta", "Google", "X", "TikTok"]
-_PLATFORM_RECIPIENTS = {
-    "Meta": os.getenv("META_GRIEVANCE_EMAIL", "").strip(),
-    "Google": os.getenv("GOOGLE_ABUSE_EMAIL", "").strip(),
-    "X": os.getenv("X_ABUSE_EMAIL", "").strip(),
-    "TikTok": os.getenv("TIKTOK_LEGAL_EMAIL", "").strip(),
-}
-
 
 class RegisterRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
@@ -110,9 +102,13 @@ class DossierRequest(BaseModel):
     matches: list[CandidateMatch] = Field(min_length=1, max_length=100)
 
 
+class ContactDiscoveryRequest(BaseModel):
+    target_url: str = Field(min_length=8, max_length=2048)
+
+
 class TakedownRequest(BaseModel):
     target_url: str = Field(min_length=8, max_length=2048)
-    platform: Platform
+    recipient: str = Field(min_length=5, max_length=254)
     victim_name: str = Field(default="Aggrieved Individual", min_length=1, max_length=120)
     hash_signature: str = Field(min_length=1, max_length=200)
 
@@ -357,27 +353,38 @@ async def generate_cybercrime_dossier(
         raise HTTPException(status_code=500, detail="PDF dossier generation failed. Check server logs.") from exc
 
 
+@app.post("/api/takedown/contact-suggestions")
+async def get_takedown_contact_suggestions(
+    request: ContactDiscoveryRequest,
+    user: dict = Depends(_current_user),
+) -> dict:
+    """Suggest publicly listed contact emails discovered on the result website."""
+    _validate_http_url(request.target_url)
+    try:
+        suggestions = discover_public_contacts(request.target_url)
+    except Exception as exc:
+        logger.warning("Website contact discovery failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not inspect public contact pages for this website.") from exc
+    return {"status": "success", **suggestions}
+
+
 @app.post("/api/legal-notice")
 @app.post("/api/takedown/preview")
 async def preview_takedown_email(
     request: TakedownRequest,
     user: dict = Depends(_current_user),
 ) -> dict:
-    """Return the exact recipient and notice text for operator review; sends nothing."""
+    """Return an operator-editable recipient and exact notice text; sends nothing."""
     _validate_http_url(request.target_url)
     _validate_evidence_signature(request.hash_signature)
-    recipient = _PLATFORM_RECIPIENTS[request.platform]
-    if legal_email_service.mode == "mock":
-        # This label is deliberately not an email address. Mock mode never sends.
-        recipient = f"LOCAL TEST MODE — no email will be sent ({request.platform})"
-    elif not recipient:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No verified recipient is configured for {request.platform}. Set the platform contact in backend/.env after checking the official contact details.",
-        )
+    recipient = request.recipient.strip()
+    if not re.fullmatch(r"[^@\\s]{1,128}@[^@\\s.]+(?:\\.[^@\\s.]+)+", recipient):
+        raise HTTPException(status_code=422, detail="Enter a valid recipient email address.")
+    target_domain = (urlparse(request.target_url).hostname or "").lower()
+    platform_name = target_domain or "reported website"
     notice = legal_email_service.generate_legal_notice(
         victim_name=request.victim_name,
-        platform_name=request.platform,
+        platform_name=platform_name,
         content_url=request.target_url,
         hash_signature=request.hash_signature,
     )
@@ -392,7 +399,7 @@ async def preview_takedown_email(
             "expires_at": now + _NOTICE_REVIEW_TTL_SECONDS,
             "dispatching": False,
             "target_url": request.target_url,
-            "platform": request.platform,
+            "platform": platform_name,
             "victim_name": request.victim_name,
             "hash_signature": request.hash_signature,
             "recipient": recipient,
@@ -401,6 +408,7 @@ async def preview_takedown_email(
     return {
         "preview_id": preview_id,
         "recipient": recipient,
+        "target_domain": platform_name,
         "delivery_mode": legal_email_service.mode,
         "notice_type": "Operator-reviewed takedown request",
         "notice_text": notice,
@@ -445,7 +453,7 @@ async def dispatch_takedown_email(
         # activity and create/review a fresh preview before any retry.
         with _PENDING_NOTICE_LOCK:
             _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
-        logger.warning("Notice delivery failed for operator_id=%s platform=%s", user["id"], action["platform"])
+        logger.warning("Notice delivery failed for operator_id=%s domain=%s", user["id"], action["platform"])
         raise HTTPException(
             status_code=502,
             detail=f"Provider acceptance was not confirmed. Check provider activity before retrying to avoid duplicates. {exc}",
