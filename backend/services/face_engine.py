@@ -147,7 +147,8 @@ def compute_similarity(vec1: List[float], vec2: List[float]) -> float:
     norm_b = float(np.linalg.norm(b))
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
-    return float(dot / (norm_a * norm_b))
+    # Floating-point rounding can otherwise produce values such as 1.0000000002.
+    return float(np.clip(dot / (norm_a * norm_b), -1.0, 1.0))
 
 
 # ─── Perceptual-hash fallback ────────────────────────────────────────────────
