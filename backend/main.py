@@ -258,6 +258,33 @@ async def generate_cybercrime_dossier(
         raise HTTPException(status_code=500, detail="PDF dossier generation failed. Check server logs.") from exc
 
 
+@app.post("/api/takedown/preview")
+async def preview_takedown_email(
+    request: TakedownRequest,
+    user: dict = Depends(_current_user),
+) -> dict:
+    """Return the exact recipient and notice text for operator review; sends nothing."""
+    _validate_http_url(request.target_url)
+    recipient = _PLATFORM_RECIPIENTS[request.platform]
+    if not recipient:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No verified recipient is configured for {request.platform}. Set the platform contact in backend/.env after checking the official contact details.",
+        )
+    notice = legal_email_service.generate_legal_notice(
+        victim_name=request.victim_name,
+        platform_name=request.platform,
+        content_url=request.target_url,
+        hash_signature=request.hash_signature,
+    )
+    return {
+        "recipient": recipient,
+        "notice_type": "Operator-reviewed takedown request",
+        "notice_text": notice,
+        "prepared_for_operator_id": user["id"],
+    }
+
+
 @app.post("/api/takedown/email")
 async def dispatch_takedown_email(
     request: TakedownRequest,
