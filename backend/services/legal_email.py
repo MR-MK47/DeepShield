@@ -21,7 +21,7 @@ class LegalEmail:
 
     def __init__(self, api_key: Optional[str] = None, mode: Optional[str] = None):
         self.api_key = (api_key if api_key is not None else os.getenv("RESEND_API_KEY", "")).strip()
-        self.mode = (mode or os.getenv("NOTICE_EMAIL_MODE", "mock")).strip().lower()
+        self.mode = (mode or os.getenv("NOTICE_EMAIL_MODE") or "mock").strip().lower()
         if self.mode not in {"mock", "resend"}:
             raise ValueError("NOTICE_EMAIL_MODE must be either 'mock' or 'resend'.")
         if self.api_key:
