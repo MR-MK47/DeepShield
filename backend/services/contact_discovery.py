@@ -145,7 +145,7 @@ def discover_public_contacts(target_url: str) -> dict:
                 continue
         html, source_url = fetched
         decoded = unescape(html)
-        found = {email.strip(".,;:!?()[]{}<>\\"'").lower() for email in EMAIL_RE.findall(decoded)}
+        found = {email.strip(".,;:!?()[]{}<>").lower() for email in EMAIL_RE.findall(decoded)}
         # mailto links may include query parameters; the general expression catches the address,
         # but extracting href gives another chance on HTML-encoded links.
         for match in re.findall(r"""mailto:([^"'?\s>]+)""", decoded, flags=re.IGNORECASE):
