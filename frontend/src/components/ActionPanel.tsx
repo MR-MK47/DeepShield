@@ -1,183 +1,192 @@
 'use client'
 
 import { useState } from 'react'
-import { type Match } from '@/lib/api'
-import { dispatchTakedown, generateDossier } from '@/lib/api'
+import Link from 'next/link'
+import { type Match, dispatchTakedown, generateDossier } from '@/lib/api'
 
 interface ActionPanelProps {
   selectedMatches: Match[]
   loading: boolean
 }
+type Platform = 'Meta' | 'Google' | 'X' | 'TikTok'
 
-type DispatchStatus = 'idle' | 'confirm' | 'sending' | 'done' | 'error'
-
-export default function ActionPanel({ selectedMatches, loading: scanLoading }: ActionPanelProps) {
-  const [dispatchStatus, setDispatchStatus] = useState<DispatchStatus>('idle')
-  const [lastResult, setLastResult] = useState<{ recipient: string; ts: string } | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string>('')
+export default function ActionPanel({ selectedMatches, loading }: ActionPanelProps) {
+  const [showReview, setShowReview] = useState(false)
+  const [platform, setPlatform] = useState<Platform>('Meta')
+  const [victimName, setVictimName] = useState('')
+  const [dispatchLoading, setDispatchLoading] = useState(false)
+  const [dispatchMessage, setDispatchMessage] = useState('')
+  const [dispatchError, setDispatchError] = useState('')
+  const [dossierLoading, setDossierLoading] = useState(false)
+  const [dossierError, setDossierError] = useState('')
   const [copied, setCopied] = useState(false)
 
   const count = selectedMatches.length
-  const ready = count > 0 && !scanLoading
+  const ready = count > 0 && !loading
+  const missingEvidence = selectedMatches.some(match => !match.hash_signature)
 
-  const [dossierLoading, setDossierLoading] = useState(false)
-  const [dossierError, setDossierError] = useState<string>('')
-
-  const handleDispatch = async () => {
-    if (count === 0) return
-    setDispatchStatus('sending')
-    setErrorMsg('')
+  const confirmDispatch = async () => {
+    if (!count || missingEvidence || dispatchLoading) return
+    setDispatchLoading(true)
+    setDispatchError('')
+    setDispatchMessage('')
     try {
-      const results = await Promise.all(
-        selectedMatches.map(m => dispatchTakedown(m.url, 'Meta'))
+      const results = []
+      // Sequential requests make it clear which notice was accepted before
+      // continuing to the next URL; a failure stops the batch immediately.
+      for (const match of selectedMatches) {
+        const result = await dispatchTakedown(
+          match.url,
+          platform,
+          victimName.trim() || 'Aggrieved Individual',
+          match.hash_signature as string,
+        )
+        results.push(result)
+      }
+      setDispatchMessage(
+        `Email provider accepted ${results.length} notice request(s). This does not mean the content has been removed.`,
       )
-      const last = results[results.length - 1]
-      setLastResult({ recipient: last.recipient, ts: last.timestamp })
-      setDispatchStatus('done')
-    } catch (err) {
-      setDispatchStatus('error')
-      setErrorMsg(err instanceof Error ? err.message : 'Dispatch failed')
+      setShowReview(false)
+    } catch (error) {
+      setDispatchError(error instanceof Error ? error.message : 'Notice dispatch failed.')
+    } finally {
+      setDispatchLoading(false)
     }
   }
 
   const handleDossier = async () => {
-    if (count === 0) return
+    if (!ready || dossierLoading) return
+    const confirmed = window.confirm(
+      `Generate a PDF containing ${count} selected candidate(s)? Review the URLs and similarity results first. The report is not proof that the content is a deepfake.`,
+    )
+    if (!confirmed) return
     setDossierLoading(true)
     setDossierError('')
     try {
-      const pdfBlob = await generateDossier(selectedMatches, 'Aggrieved Individual')
-      const url = window.URL.createObjectURL(pdfBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `DeepShield_Cybercrime_Dossier_${Date.now()}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (err) {
-      setDossierError(err instanceof Error ? err.message : 'Failed to generate dossier PDF')
+      const blob = await generateDossier(selectedMatches, victimName.trim() || 'Aggrieved Individual')
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `DeepShield_Candidate_Evidence_${Date.now()}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (error) {
+      setDossierError(error instanceof Error ? error.message : 'PDF generation failed.')
     } finally {
       setDossierLoading(false)
     }
   }
 
-  const handleCopyHashes = () => {
-    if (count === 0) return
-    const text = selectedMatches.map(m => `[Candidate] ${m.domain} | Match: ${(m.similarity * 100).toFixed(1)}% | URL: ${m.url}`).join('\n')
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copySignatures = async () => {
+    if (!count) return
+    const text = selectedMatches
+      .map(match => `Domain: ${match.domain}\nSimilarity candidate: ${(match.similarity * 100).toFixed(1)}%\nSignature: ${match.hash_signature || 'Not available'}\nURL: ${match.url}`)
+      .join('\n\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch {
+      setDispatchError('Clipboard access was blocked by the browser. Select and copy the candidate details manually.')
+    }
   }
 
   return (
     <aside className="sticky top-6 w-full lg:w-80 shrink-0 space-y-4">
       <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div>
-            <h3 className="text-slate-100 font-semibold text-sm">Forensic Actions</h3>
-            <p className="text-slate-400 text-xs mt-0.5">
-              {count > 0
-                ? `${count} candidate${count > 1 ? 's' : ''} selected`
-                : 'Select matches to execute action'}
-            </p>
-          </div>
-          {count > 0 && (
-            <span className="px-2 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 text-xs font-mono">
-              {count} Active
-            </span>
-          )}
-        </div>
-
-        {/* Primary Action: Rule 3(1)(b) Notice */}
-        <div className="space-y-2">
-          <button
-            onClick={handleDispatch}
-            disabled={!ready || dispatchStatus === 'sending'}
-            className={`
-              w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left flex items-center justify-between
-              transition-colors shadow-sm
-              ${ready && dispatchStatus !== 'sending'
-                ? 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer'
-                : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed'}
-            `}
-          >
-            <div>
-              <div className="font-semibold">Dispatch Rule 3(1)(b) Notice</div>
-              <div className="text-[10px] opacity-80 mt-0.5">IT Rules 2021 Grievance Officer</div>
-            </div>
-            {dispatchStatus === 'sending' && (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-            )}
-          </button>
-
-          {dispatchStatus === 'done' && lastResult && (
-            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-1">
-              <p className="font-semibold text-emerald-400">Notice Dispatched</p>
-              <p className="text-[11px] text-slate-300">Recipient: {lastResult.recipient}</p>
-              <p className="text-[10px] text-slate-500 font-mono">{new Date(lastResult.ts).toLocaleString()}</p>
-            </div>
-          )}
-
-          {dispatchStatus === 'error' && (
-            <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-200 text-xs">
-              <p className="font-semibold">Dispatch Error</p>
-              <p className="text-[11px] text-red-300 mt-0.5">{errorMsg}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Action 2: Generate Cybercrime Dossier */}
-        <div className="space-y-2">
-          <button
-            onClick={handleDossier}
-            disabled={!ready || dossierLoading}
-            className={`
-              w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left flex items-center justify-between transition-colors border
-              ${ready && !dossierLoading
-                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer'
-                : 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed'}
-            `}
-          >
-            <div>
-              <div className="font-semibold">Generate Cybercrime Dossier</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">ReportLab PDF &amp; Evidence Packet</div>
-            </div>
-            {dossierLoading && (
-              <div className="w-4 h-4 border-2 border-slate-400 border-t-blue-500 rounded-full animate-spin shrink-0" />
-            )}
-          </button>
-
-          {dossierError && (
-            <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-200 text-xs">
-              <p className="font-semibold">Dossier Error</p>
-              <p className="text-[11px] text-red-300 mt-0.5">{dossierError}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Action 3: Copy Hash Signatures */}
-        <button
-          onClick={handleCopyHashes}
-          disabled={!ready}
-          className={`
-            w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left transition-colors border
-            ${ready
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer'
-              : 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed'}
-          `}
-        >
-          <div className="font-semibold">{copied ? 'Signatures Copied to Clipboard' : 'Copy Hash Signatures'}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Export isolated URL &amp; vector metadata</div>
-        </button>
-
-        {/* Compliance Note */}
-        <div className="pt-2 border-t border-slate-800">
-          <p className="text-[11px] text-slate-400 leading-normal">
-            Human-in-the-loop requirement: Every legal notice dispatch requires explicit operator confirmation per DPDP Act 2023.
+        <div className="pb-3 border-b border-slate-800">
+          <h3 className="text-slate-100 font-semibold text-sm">Forensic actions</h3>
+          <p className="text-slate-400 text-xs mt-1">
+            {count ? `${count} candidate(s) selected` : 'Select candidates before taking action.'}
           </p>
         </div>
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => { setDispatchError(''); setDispatchMessage(''); setShowReview(true) }}
+            disabled={!ready || dispatchLoading}
+            className="w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white"
+          >
+            <span className="block font-semibold">Review legal notice</span>
+            <span className="block text-[10px] opacity-80 mt-0.5">Nothing is sent until you confirm.</span>
+          </button>
+          {dispatchMessage && <p role="status" className="p-3 rounded-lg border border-emerald-800 bg-emerald-950/30 text-emerald-200 text-xs">{dispatchMessage}</p>}
+          {dispatchError && (
+            <div className="p-3 rounded-lg border border-red-800 bg-red-950/30 text-red-200 text-xs">
+              <p>{dispatchError}</p>
+              {/Please sign in|Session expired|sign in again/i.test(dispatchError) && <Link href="/login" className="inline-block mt-2 text-blue-300 underline">Sign in to continue</Link>}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDossier}
+          disabled={!ready || dossierLoading}
+          className="w-full py-2.5 px-3.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs text-left"
+        >
+          <span className="block font-semibold">{dossierLoading ? 'Generating PDF…' : 'Generate evidence report'}</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">Review and confirm before export.</span>
+        </button>
+        {dossierError && <p role="alert" className="text-xs text-red-300">{dossierError} {(/sign in|session expired/i.test(dossierError)) && <Link href="/login" className="underline">Sign in</Link>}</p>}
+
+        <button
+          type="button"
+          onClick={copySignatures}
+          disabled={!ready}
+          className="w-full py-2.5 px-3.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs text-left"
+        >
+          <span className="block font-semibold">{copied ? 'Candidate details copied' : 'Copy candidate evidence'}</span>
+          <span className="block text-[10px] text-slate-400 mt-0.5">Copies the URL and actual available signature.</span>
+        </button>
+        <p className="pt-2 border-t border-slate-800 text-[11px] text-slate-400">
+          Similarity candidates are not proof of a deepfake. Verify source evidence and notice details before sending.
+        </p>
       </div>
+
+      {showReview && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="notice-review-title">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 sm:p-6 space-y-4">
+            <div>
+              <h2 id="notice-review-title" className="text-lg font-semibold text-white">Review before dispatch</h2>
+              <p className="text-sm text-slate-400 mt-1">Check every URL, recipient platform, name and evidence signature. This action sends real email when configured.</p>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="complainant-name" className="block text-xs text-slate-300">Complainant name</label>
+              <input id="complainant-name" value={victimName} onChange={event => setVictimName(event.target.value)} maxLength={120} placeholder="Aggrieved Individual" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="notice-platform" className="block text-xs text-slate-300">Destination platform</label>
+              <select id="notice-platform" value={platform} onChange={event => setPlatform(event.target.value as Platform)} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">
+                <option value="Meta">Meta</option>
+                <option value="Google">Google</option>
+                <option value="X">X</option>
+                <option value="TikTok">TikTok</option>
+              </select>
+            </div>
+            <div className="rounded-lg border border-slate-800 divide-y divide-slate-800">
+              {selectedMatches.map((match, index) => (
+                <div key={match.url} className="p-3 space-y-1">
+                  <p className="text-xs text-slate-200">{index + 1}. {match.domain} · {(match.similarity * 100).toFixed(1)}% similarity</p>
+                  <p className="text-[11px] text-slate-400 break-all">{match.url}</p>
+                  <p className="text-[10px] text-slate-500 break-all">Evidence: {match.hash_signature || 'Missing signature'}</p>
+                </div>
+              ))}
+            </div>
+            {missingEvidence && <p role="alert" className="text-xs text-red-300">At least one selected candidate has no evidence signature. Run a fresh search before dispatching.</p>}
+            {dispatchError && <p role="alert" className="text-xs text-red-300">{dispatchError}</p>}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+              <button type="button" onClick={() => setShowReview(false)} disabled={dispatchLoading} className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={confirmDispatch} disabled={dispatchLoading || missingEvidence} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+                {dispatchLoading ? 'Sending…' : `Confirm and send ${count} notice(s)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   )
 }
