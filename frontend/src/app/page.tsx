@@ -12,24 +12,24 @@ export default function LandingPage() {
 
   const faqs = [
     {
-      q: 'How does DeepShield comply with the DPDP Act 2023 zero-biometric mandate?',
-      a: 'All reference photographs are vectorized in volatile RAM using InsightFace ArcFace (512-D float32 embeddings). The original image bytes and vector embeddings are discarded immediately after memory processing. Zero face vectors or reference images are persisted to disk or external databases.',
+      q: 'How does DeepShield handle reference images?',
+      a: 'Application code does not intentionally save reference image uploads or extracted vectors to its own database. Multipart handling, model caches, logs, server hosting and temporary files still need to be reviewed in the actual runtime before making formal compliance claims.',
     },
     {
-      q: 'What is the statutory timeline under Rule 3(1)(b) of the IT Rules 2021?',
-      a: 'Rule 3(1)(b) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules 2021 requires social media intermediaries to acknowledge takedown notices within 24 hours and remove non-consensual synthetic or impersonation content within 36 hours of receipt.',
+      q: 'Does every report have the same legal deadline?',
+      a: 'Deadlines and obligations depend on the applicable law, content category, facts and platform process. Review current official guidance or consult a qualified adviser before sending a legal notice; DeepShield does not determine legal eligibility or guarantee a removal deadline.',
     },
     {
-      q: 'How does cosine similarity scoring prevent false positives?',
-      a: 'Candidates isolated by OSINT web crawling are evaluated against the 512-D reference vector using normalized cosine distance. The system defaults to a conservative 55% similarity threshold, allowing operators to manually adjust precision while inspecting natural aspect ratio thumbnails.',
+      q: 'Does similarity scoring prove that an image is a deepfake?',
+      a: 'No. Similarity scoring finds images that may resemble a reference; it does not establish that content is synthetic, non-consensual, illegal or an impersonation. Thresholds trade off candidate recall and false positives, so each result needs human verification.',
     },
     {
       q: 'What happens when I click "Dispatch Rule 3(1)(b) Notice"?',
-      a: 'DeepShield formats a legal takedown notice containing the target URL, platform grievance officer contact, timestamp, and non-consensual content declaration. Under strict Human-in-the-Loop design, notices are dispatched via SMTP only upon explicit operator confirmation.',
+      a: 'The operator must sign in, choose a destination, inspect the configured recipient and read the exact notice preview, then confirm. Actual sending requires a valid Resend API key and configured recipient. Provider acceptance does not mean a platform has removed the content.',
     },
     {
       q: 'Can DeepShield be deployed locally for complete data sovereignty?',
-      a: 'Yes. DeepShield is built entirely on free, open-source technologies (FastAPI, InsightFace, DuckDuckGo Search, ReportLab, Next.js 14). The entire stack can be run locally or within private cloud infrastructure with zero operational SaaS costs.',
+      a: 'The source can run locally, but public search providers, model downloads, hosting and email delivery have external requirements or limits. A local deployment does not itself establish compliance or guarantee operational cost is zero.',
     },
   ]
 
@@ -73,19 +73,19 @@ export default function LandingPage() {
         {/* MASSIVE H1 Display Typography with Staggered Reveal */}
         <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold font-display text-slate-100 tracking-tight leading-[1.08]">
           <span className="block animate-fade-in-up" style={{ animationDelay: '0ms' }}>
-            Autonomous Deepfake
+            Image Similarity Search
           </span>
           <span className="block text-slate-200 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-            Eradication and Rule 3(1)(b)
+            and Candidate Review
           </span>
           <span className="block text-blue-500 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-            Legal Notice Dispatch
+            Evidence Reporting
           </span>
         </h1>
 
         {/* Subtitle - 50% size of title, clear line height */}
         <p className="text-lg sm:text-xl md:text-2xl text-slate-400 max-w-3xl leading-[1.7] font-normal animate-fade-in-up" style={{ animationDelay: '300ms' }}>
-          An open-source OSINT crawling platform that scans public web endpoints for non-consensual visual impersonations, extracts 512-D ArcFace vectors in RAM, and dispatches statutory IT Rules 2021 grievance notices.
+          A research prototype that searches public image results for similarity candidates, lets operators inspect source URLs, and prepares evidence reports or reviewed notice drafts. Similarity results are not proof of synthetic media.
         </p>
 
         {/* Primary CTA Buttons */}
@@ -115,16 +115,16 @@ export default function LandingPage() {
             <div className="text-xs text-slate-400 leading-normal">InsightFace ArcFace Embeddings</div>
           </div>
           <div className="p-5 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-1">
-            <div className="text-3xl font-bold font-mono text-slate-100">0 Bytes</div>
+            <div className="text-3xl font-bold font-mono text-slate-100">Not saved</div>
             <div className="text-xs text-slate-400 leading-normal">Persistent Biometric Storage</div>
           </div>
           <div className="p-5 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-1">
-            <div className="text-3xl font-bold font-mono text-slate-100">36 Hours</div>
-            <div className="text-xs text-slate-400 leading-normal">Statutory IT Rules Window</div>
+            <div className="text-3xl font-bold font-mono text-slate-100">Review first</div>
+            <div className="text-xs text-slate-400 leading-normal">Legal deadlines depend on the case</div>
           </div>
           <div className="p-5 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-1">
-            <div className="text-3xl font-bold font-mono text-slate-100">100% Free</div>
-            <div className="text-xs text-slate-400 leading-normal">Open-Source Python Stack</div>
+            <div className="text-3xl font-bold font-mono text-slate-100">Open tools</div>
+            <div className="text-xs text-slate-400 leading-normal">External providers may have limits or costs</div>
           </div>
         </div>
       </section>
@@ -136,7 +136,7 @@ export default function LandingPage() {
             Forensic Inspection Dashboard &amp; Analysis Terminal
           </h2>
           <p className="text-xs sm:text-sm text-slate-400 max-w-2xl leading-[1.6]">
-            Real-time visual demonstration of in-memory vector extraction, OSINT web endpoint discovery, and cosine similarity metric scoring.
+            Illustrative dashboard mock-up. Candidate figures and sample vectors below are examples, not live results from a scan.
           </p>
         </div>
 
@@ -151,7 +151,7 @@ export default function LandingPage() {
               <span className="font-mono text-slate-400 ml-2 font-semibold">DeepShield OSINT Console — Active Search Session</span>
             </div>
             <span className="px-2.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800 text-emerald-400 font-mono text-[11px]">
-              DPDP Act Compliant (RAM Vector Purge Active)
+              Example data only
             </span>
           </div>
 
@@ -221,7 +221,7 @@ export default function LandingPage() {
               Asymmetric Forensic &amp; Legal Infrastructure
             </h2>
             <p className="text-sm text-slate-400 leading-[1.7]">
-              DeepShield decouples visual feature extraction from permanent storage. By combining InsightFace ArcFace vectors with OSINT crawling and statutory grievance templates, operators execute end-to-end takedowns without privacy liability.
+              DeepShield combines image similarity analysis with public image search and operator-reviewed reporting. It helps organize candidate URLs for human review; it does not independently prove that an image is synthetic, determine legal liability or guarantee a takedown.
             </p>
             <div className="pt-2">
               <Link
@@ -240,11 +240,11 @@ export default function LandingPage() {
           <div className="lg:col-span-3 space-y-4">
             <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-100 font-display">In-Memory Biometric Isolation</h3>
-                <span className="text-xs font-mono text-blue-400">DPDP Act 2023</span>
+                <h3 className="text-base font-bold text-slate-100 font-display">In-memory image processing</h3>
+                <span className="text-xs font-mono text-blue-400">Application behavior</span>
               </div>
               <p className="text-xs text-slate-400 leading-[1.7]">
-                Reference photos uploaded to `/api/analyze` are processed in RAM to extract 512-D ArcFace vectors. Both reference images and vector arrays are purged immediately post-scan.
+                Reference uploads are processed in memory by the application and are not intentionally written to the account database. Model caches, server logs and the hosting environment require separate review before making any formal privacy-compliance claim.
               </p>
             </div>
 
@@ -260,11 +260,11 @@ export default function LandingPage() {
 
             <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-100 font-display">Statutory Grievance Generation</h3>
+                <h3 className="text-base font-bold text-slate-100 font-display">Operator-reviewed notice drafts</h3>
                 <span className="text-xs font-mono text-blue-400">IT Rules 2021</span>
               </div>
               <p className="text-xs text-slate-400 leading-[1.7]">
-                Selected candidate matches trigger automated formatting of statutory Rule 3(1)(b) legal takedown notices, mapped directly to designated host platform Grievance Officers.
+                For a selected candidate, a signed-in operator can inspect a draft notice and configured recipient before confirming. Real sending requires live email mode, a valid provider key and independently verified contact details.
               </p>
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function LandingPage() {
             <div className="text-xs font-bold font-mono text-slate-200">Meta / Facebook</div>
             <p className="text-xs font-mono text-slate-400 truncate">fbgoindia@support.facebook.com</p>
             <span className="inline-block text-[10px] font-mono text-blue-400 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-800">
-              Statutory 36h Takedown
+              Review notice draft
             </span>
           </div>
 
@@ -360,10 +360,10 @@ export default function LandingPage() {
       <section className="max-w-6xl mx-auto px-6 py-16 border-t border-slate-800 w-full">
         <div className="p-10 sm:p-14 rounded-3xl bg-slate-900 border border-slate-800 text-center shadow-2xl space-y-6">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-display text-slate-100 tracking-tight leading-[1.15]">
-            Execute Forensic Search &amp; Eradicate Deepfakes
+            Search image results and review candidates
           </h2>
           <p className="text-sm sm:text-base text-slate-400 max-w-xl mx-auto leading-[1.7]">
-            Upload reference media, extract 512-D ArcFace vectors in RAM, and dispatch statutory Rule 3(1)(b) IT Rules legal notices.
+            Upload a reference image, search public image results for similarity candidates, inspect the source URLs and optionally prepare an evidence report. Any notice must be reviewed before use.
           </p>
           <div>
             <Link
@@ -390,16 +390,16 @@ export default function LandingPage() {
               <span className="font-bold text-slate-200 font-display text-base">DeepShield</span>
             </div>
             <p className="text-xs text-slate-400 leading-[1.7] max-w-md">
-              AI-Powered Deepfake Search &amp; Eradication Engine. Extracts zero-biometric ArcFace vectors in RAM and automates Rule 3(1)(b) IT Rules 2021 statutory takedown notices.
+              Public image similarity candidates, operator-reviewed evidence reports and a notice-preview workflow. Similarity does not establish that media is synthetic or unlawful.
             </p>
           </div>
 
           <div className="space-y-2.5">
-            <h4 className="font-bold text-slate-200 font-display text-xs uppercase tracking-wider">Statutory Framework</h4>
+            <h4 className="font-bold text-slate-200 font-display text-xs uppercase tracking-wider">Legal considerations</h4>
             <ul className="space-y-2 font-mono text-[11px] text-slate-400">
               <li>Section 3(1)(b) IT Rules 2021</li>
-              <li>DPDP Act 2023 Compliance</li>
-              <li>PDQ &amp; pHash NCII Standards</li>
+              <li>Privacy claims depend on runtime and deployment</li>
+              <li>pHash / optional PDQ candidate signatures</li>
             </ul>
           </div>
 
@@ -408,7 +408,7 @@ export default function LandingPage() {
             <ul className="space-y-2 font-mono text-[11px] text-slate-400">
               <li>Python FastAPI &amp; InsightFace</li>
               <li>Next.js 14 &amp; Tailwind CSS</li>
-              <li>100% Free Open Stack</li>
+              <li>Open-source core; external services may have limits or costs</li>
             </ul>
           </div>
         </div>

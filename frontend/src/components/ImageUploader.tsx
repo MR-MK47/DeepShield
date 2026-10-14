@@ -3,12 +3,15 @@
 import { useCallback, useState, useEffect } from 'react'
 import { analyzeImage, searchMatches, type Match } from '@/lib/api'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 interface ImageUploaderProps {
   onMatchesFound: (matches: Match[], queryText: string, threshold: number) => void
   onScanStart?: () => void
+  onScanEnd?: () => void
 }
 
-export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUploaderProps) {
+export default function ImageUploader({ onMatchesFound, onScanStart, onScanEnd }: ImageUploaderProps) {
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -17,6 +20,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [queryText, setQueryText] = useState('')
   const [threshold, setThreshold] = useState<number>(0.30)
+  const [saveHistory, setSaveHistory] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -27,9 +31,15 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
   }, [previewUrl])
 
   const handleSelectFile = useCallback((file: File) => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl)
+    if (!file.type.startsWith('image/')) {
+      setError('Choose a valid image file (JPG, PNG, WEBP or GIF).')
+      return
     }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError('The image must be 10 MB or smaller.')
+      return
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setSelectedFile(file)
     setPreviewUrl(URL.createObjectURL(file))
     setError(null)
@@ -74,8 +84,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
       const analyzeRes = await analyzeImage(selectedFile)
       setProgress(50)
 
-      const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold)
-      console.log("DEBUG: Matches received from backend:", matches);
+      const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold, saveHistory)
       setProgress(90)
 
       setProgress(100)
@@ -83,9 +92,9 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Scan process failed. Check network connection and retry.'
       setError(errorMsg)
-      onMatchesFound([], queryText, threshold)
     } finally {
       setLoading(false)
+      onScanEnd?.()
       setTimeout(() => setProgress(0), 400)
     }
   }
@@ -122,7 +131,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
             Select or drag a reference image file
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Accepts JPG, PNG, WEBP. ArcFace extracts a 512-dimensional vector in RAM.
+            JPG, PNG, WEBP or GIF · Maximum 10 MB. Face extraction falls back to perceptual hashing when no face embedding is available.
           </p>
         </div>
       ) : (
@@ -202,6 +211,19 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
           </div>
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-xs text-slate-300">
+        <input
+          type="checkbox"
+          checked={saveHistory}
+          onChange={(event) => setSaveHistory(event.target.checked)}
+          disabled={loading}
+          className="mt-0.5 accent-blue-500"
+        />
+        <span>
+          Save these results to my account history (requires sign-in). Only candidate URLs, scores and evidence signatures are saved — not the uploaded photo or face vector.
+        </span>
+      </label>
 
       {/* Submit Action Button */}
       <button

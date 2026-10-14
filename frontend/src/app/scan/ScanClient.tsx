@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import ImageUploader from '@/components/ImageUploader'
 import MatchGrid from '@/components/MatchGrid'
 import ActionPanel from '@/components/ActionPanel'
-import { type Match } from '@/lib/api'
+import { type Match, type Operator, getCurrentOperator, logoutOperator } from '@/lib/api'
 
 export default function ScanClient() {
   const [matches, setMatches] = useState<Match[]>([])
@@ -13,10 +13,35 @@ export default function ScanClient() {
   const [scanLoading, setScanLoading] = useState(false)
   const [hasScanned, setHasScanned] = useState(false)
   const [lastQuery, setLastQuery] = useState<string>('')
-  const [lastThreshold, setLastThreshold] = useState<number>(0.55)
+  const [lastThreshold, setLastThreshold] = useState<number>(0.30)
+  const [operator, setOperator] = useState<Operator | null>(null)
+  const [authMessage, setAuthMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getCurrentOperator().then(user => { if (active) setOperator(user) }).catch(() => { if (active) setOperator(null) })
+    return () => { active = false }
+  }, [])
+
+  const handleLogout = async () => {
+    setAuthMessage('')
+    try {
+      await logoutOperator()
+      setOperator(null)
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Could not sign out.')
+    }
+  }
 
   const handleScanStart = useCallback(() => {
     setHasScanned(false)
+    setMatches([])
+    setSelectedIds(new Set())
+    setScanLoading(true)
+  }, [])
+
+  const handleScanEnd = useCallback(() => {
+    setScanLoading(false)
   }, [])
 
   const handleMatchesFound = useCallback((found: Match[], queryText: string, threshold: number) => {
@@ -65,13 +90,21 @@ export default function ScanClient() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-            <span>DPDP Act 2023 Compliant</span>
-            <span className="text-slate-800">|</span>
-            <span>RAM Vector Lifecycle</span>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            {operator ? (
+              <>
+                <span className="hidden sm:inline">Signed in: {operator.name}</span>
+                <Link href="/history" className="underline hover:text-white">History</Link>
+                <button type="button" onClick={handleLogout} className="underline hover:text-white">Sign out</button>
+              </>
+            ) : (
+              <Link href="/login" className="underline hover:text-white">Operator sign in</Link>
+            )}
           </div>
         </div>
       </header>
+
+      {authMessage && <p role="alert" className="bg-red-950/60 px-6 py-2 text-xs text-red-200">{authMessage}</p>}
 
       {/* Main Body */}
       <main className="max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-8">
@@ -81,13 +114,13 @@ export default function ScanClient() {
             Forensic Deepfake Scan &amp; Impersonation Search
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 leading-normal">
-            Extract ArcFace biometric vectors and query public endpoints for candidate deepfake matches.
+            Extract a face embedding when available, search public image results and review similarity candidates. Results are not proof of synthetic media.
           </p>
         </div>
 
         {/* Upload Control Station */}
         <section className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-sm">
-          <ImageUploader onMatchesFound={handleMatchesFound} onScanStart={handleScanStart} />
+          <ImageUploader onMatchesFound={handleMatchesFound} onScanStart={handleScanStart} onScanEnd={handleScanEnd} />
         </section>
 
         {/* Match Candidates & Actions */}
@@ -118,7 +151,7 @@ export default function ScanClient() {
                 No matches found exceeding {thresholdPercent}% similarity{lastQuery ? ` for "${lastQuery}"` : ''}
               </h3>
               <p className="text-xs text-slate-400 leading-normal">
-                The OSINT crawl evaluated candidate public web images against your 512-D face vector, but none scored above the selected threshold ({thresholdPercent}%).
+                The search returned no candidates above the selected similarity threshold ({thresholdPercent}%). This can also happen when an image provider blocks requests or has no useful results.
               </p>
             </div>
 
@@ -126,7 +159,7 @@ export default function ScanClient() {
               <p className="text-xs font-medium text-slate-300">Suggested steps to improve search recall:</p>
               <ul className="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
                 <li>Verify spelling or try alternate name keywords in the target query input.</li>
-                <li>Adjust the similarity threshold slider to a lower setting (e.g. 50% or 45%).</li>
+                <li>Lower the similarity threshold carefully, keeping in mind that lower thresholds can increase false positives.</li>
                 <li>Ensure the uploaded photo has clear facial lighting and un-occluded features.</li>
               </ul>
             </div>
@@ -137,8 +170,8 @@ export default function ScanClient() {
       {/* Minimal Footer */}
       <footer className="border-t border-slate-800 py-4 text-xs text-slate-400 bg-[#080c14]">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between font-mono text-[11px]">
-          <p>DeepShield System &middot; Rule 3(1)(b) IT Rules 2021</p>
-          <p>Zero Biometric Persistence</p>
+          <p>DeepShield &middot; operator-reviewed candidate search</p>
+          <p>Do not treat similarity as proof</p>
         </div>
       </footer>
     </div>
