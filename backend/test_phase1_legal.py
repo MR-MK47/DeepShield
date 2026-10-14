@@ -132,3 +132,51 @@ def test_provider_error_is_returned_as_gateway_error(monkeypatch):
         )
     assert response.status_code == 502
     assert "provider unavailable" in response.json()["detail"]
+
+
+def test_notice_preview_requires_auth_and_never_sends(monkeypatch):
+    monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Meta", "meta-test-recipient@example.test")
+    with patch("main.legal_email_service.send_notice") as send:
+        denied = client.post(
+            "/api/takedown/preview",
+            json={
+                "target_url": "https://example.com/candidate.jpg",
+                "platform": "Meta",
+                "hash_signature": "sha256:" + "9" * 64,
+            },
+        )
+        assert denied.status_code == 401
+        response = client.post(
+            "/api/takedown/preview",
+            headers=auth_headers(),
+            json={
+                "target_url": "https://example.com/candidate.jpg",
+                "platform": "Meta",
+                "victim_name": "Test User",
+                "hash_signature": "sha256:" + "9" * 64,
+            },
+        )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["recipient"] == "meta-test-recipient@example.test"
+    assert "Test User" in body["notice_text"]
+    assert "https://example.com/candidate.jpg" in body["notice_text"]
+    send.assert_not_called()
+
+
+def test_notice_preview_refuses_missing_verified_contact():
+    original = main._PLATFORM_RECIPIENTS["Google"]
+    main._PLATFORM_RECIPIENTS["Google"] = ""
+    try:
+        response = client.post(
+            "/api/takedown/preview",
+            headers=auth_headers(),
+            json={
+                "target_url": "https://example.com/candidate.jpg",
+                "platform": "Google",
+                "hash_signature": "sha256:" + "8" * 64,
+            },
+        )
+    finally:
+        main._PLATFORM_RECIPIENTS["Google"] = original
+    assert response.status_code == 503
