@@ -8,9 +8,10 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 interface ImageUploaderProps {
   onMatchesFound: (matches: Match[], queryText: string, threshold: number) => void
   onScanStart?: () => void
+  onScanEnd?: () => void
 }
 
-export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUploaderProps) {
+export default function ImageUploader({ onMatchesFound, onScanStart, onScanEnd }: ImageUploaderProps) {
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -92,6 +93,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
       setError(errorMsg)
     } finally {
       setLoading(false)
+      onScanEnd?.()
       setTimeout(() => setProgress(0), 400)
     }
   }
