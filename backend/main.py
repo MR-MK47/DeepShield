@@ -439,17 +439,25 @@ async def dispatch_takedown_email(
             hash_signature=action["hash_signature"],
         )
     except RuntimeError as exc:
+        # Consume this review after any attempt: provider/network failures may
+        # leave acceptance status uncertain, so reusing the same preview could
+        # accidentally send duplicates. The operator must verify provider
+        # activity and create/review a fresh preview before any retry.
         with _PENDING_NOTICE_LOCK:
-            if request.preview_id in _PENDING_NOTICE_REVIEWS:
-                _PENDING_NOTICE_REVIEWS[request.preview_id]["dispatching"] = False
+            _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
         logger.warning("Notice delivery failed for operator_id=%s platform=%s", user["id"], action["platform"])
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"Provider acceptance was not confirmed. Check provider activity before retrying to avoid duplicates. {exc}",
+        ) from exc
     except Exception as exc:
         with _PENDING_NOTICE_LOCK:
-            if request.preview_id in _PENDING_NOTICE_REVIEWS:
-                _PENDING_NOTICE_REVIEWS[request.preview_id]["dispatching"] = False
+            _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
         logger.exception("Unexpected notice dispatch failure")
-        raise HTTPException(status_code=502, detail="Email provider failed to dispatch the notice.") from exc
+        raise HTTPException(
+            status_code=502,
+            detail="Provider acceptance was not confirmed. Check provider activity before retrying to avoid duplicates.",
+        ) from exc
 
     with _PENDING_NOTICE_LOCK:
         _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
