@@ -381,7 +381,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
                   </p>
                 ) : preview.delivery_mode === 'smtp' ? (
                   <p className="text-[11px] text-amber-200">
-                    This uses the mailbox configured in backend/.env. Verify the recipient and draft before sending. The SMTP server's acceptance is not a guarantee of final inbox placement.
+                    This uses the mailbox configured in backend/.env. Verify the recipient and draft before sending. The SMTP server&apos;s acceptance is not a guarantee of final inbox placement.
                   </p>
                 ) : (
                   <p className="text-[11px] text-amber-200">
