@@ -8,6 +8,10 @@ from __future__ import annotations
 import io
 import logging
 import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 from datetime import datetime, timezone
 from typing import Literal, Optional
 from urllib.parse import urlparse
