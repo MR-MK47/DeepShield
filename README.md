@@ -11,7 +11,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Perceptual hashing using standard pHash. Genuine PDQ hashing is used only when the optional pdqhash native binding is installed; installation may require platform-specific build support.
 - Public image discovery using DDGS, bounded remote image downloads, URL safety checks and similarity candidate filtering.
 - Local operator registration and login, password hashing, expiring server-side sessions and authenticated legal/report endpoints.
-- A review modal rendered above the result grid, website-specific contact discovery from public homepage/contact/privacy/legal pages, an editable email recipient, a no-send local test mode, Resend submission after explicit confirmation, and PDF candidate-evidence reports.
+- A review modal rendered above the result grid, website-specific contact discovery from public homepage/contact/privacy/legal pages, an editable email recipient, SMTP email verification to the signed-in operator, SMTP or Resend notice dispatch after explicit confirmation, and PDF candidate-evidence reports.
 - No intentional application-level persistence of reference image uploads or extracted vector data. Verify the complete hosting/runtime stack before making formal privacy-compliance claims.
 
 ## Requirements
@@ -19,7 +19,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Python 3.11 recommended.
 - Node.js 18.17+ (Node 20 LTS recommended) and npm.
 - Network access is needed for public image search. Real ArcFace analysis may download InsightFace model files on first use; without a usable model, the API can fall back to pHash.
-- The default NOTICE_EMAIL_MODE=mock exercises preview and confirmation without sending email. The app can search public contact pages on the matched website and shows the source page for discovered email addresses; operators can edit the address manually. Preview and dispatch require authentication, and dispatch consumes a short-lived preview created by the same operator. Live sending requires NOTICE_EMAIL_MODE=resend, RESEND_API_KEY, and a sender address on a domain verified in Resend. A provider acceptance is not proof of delivery or removal.
+- The default NOTICE_EMAIL_MODE=mock exercises preview and confirmation without sending email. Use NOTICE_EMAIL_MODE=smtp plus SMTP credentials to send genuine mail through your own mailbox's SMTP server; the signed-in user can send a test email to the address on their profile. Resend remains supported with NOTICE_EMAIL_MODE=resend, a valid RESEND_API_KEY, and a sender address on a domain verified in Resend. A server/provider acceptance is not proof of final inbox placement or content removal.
 
 ## Setup on Windows
 
@@ -37,7 +37,20 @@ copy .env.example .env
 uvicorn main:app --reload --port 8000
 ~~~
 
-If you already have a local .env, keep it; do not overwrite it. Add new settings from .env.example only when missing. Local testing uses NOTICE_EMAIL_MODE=mock and will clearly say that no email was sent. To enable real external delivery, set NOTICE_EMAIL_MODE=resend, configure RESEND_API_KEY, and set RESEND_FROM_EMAIL to an address on a domain verified in your Resend account (the sample onboarding@resend.dev sender is for Resend testing and may not deliver to arbitrary external recipients). On confirmation, the backend submits the reviewed notice to Resend using the editable recipient. Contact discovery only suggests public email addresses; verify the right department and exact recipient before sending. Never commit your real .env.
+If you already have a local .env, keep it; do not overwrite it. Add the SMTP settings from .env.example when needed. Local testing uses NOTICE_EMAIL_MODE=mock and never sends a message. To prove real email delivery using your own Gmail mailbox, enable 2-Step Verification and create a Google App Password, then set:
+
+~~~dotenv
+NOTICE_EMAIL_MODE=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=youraddress@gmail.com
+SMTP_PASSWORD=your_16_character_app_password
+SMTP_FROM_EMAIL=youraddress@gmail.com
+~~~
+
+Use the generated App Password, not your normal Gmail password. App Passwords require 2-Step Verification and might not be available on some managed or Advanced Protection accounts; see [Google's App Password instructions](https://support.google.com/accounts/answer/185833?hl=en). The service strips spaces from the generated password, but keep it private and do not commit your .env. SMTP mode sends reviewed notices to the email recipient you confirmed and enables the **Send test email** button, which sends one real test email to the signed-in operator's profile email. Make sure that profile email is your own inbox.
+
+Resend mode is also available, but the shared onboarding@resend.dev sender is limited to testing and is not for arbitrary external contacts. For actual Resend delivery to other recipients, verify your own sending domain and use a sender on that domain. Contact discovery only suggests public email addresses; verify the correct department and recipient before sending. Never commit your real .env.
 
 For a quick offline-safe smoke test without downloading a face model, set DEEPSHIELD_DISABLE_FACE_MODEL=1 in the terminal before starting the backend. This uses pHash fallback and is **not** a test of ArcFace accuracy.
 
@@ -111,7 +124,7 @@ npm run lint
 npm run build
 ~~~
 
-The default local test mode never sends real emails. Automated tests also mock the provider and do not send external messages. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
+NOTICE_EMAIL_MODE=mock never sends real emails. Automated tests mock SMTP and Resend and never send external messages. SMTP tests verify the composed message and transport calls without network delivery. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
 
 ## API endpoints
 
@@ -129,6 +142,7 @@ The default local test mode never sends real emails. Automated tests also mock t
 | GET | `/api/matches` | List the operator's explicitly saved scans | Bearer token |
 | DELETE | `/api/matches/{scan_id}` | Delete a saved scan | Bearer token |
 | POST | `/api/dossier` | Generate candidate-evidence PDF | Bearer token |
+| POST | `/api/email/test` | Send a real SMTP test email to the signed-in operator's profile email | Bearer token |
 | POST | `/api/takedown/contact-suggestions` | Search public pages on the result website for contact emails | Bearer token |
 | POST | `/api/takedown/preview` | Prepare preview using an editable recipient without sending email | Bearer token |
 | POST | `/api/legal-notice` | Alias for the no-send notice preview | Bearer token |
@@ -155,6 +169,7 @@ backend/
     hash_engine.py
     osint_search.py
     legal_email.py
+    contact_discovery.py
     pdf_dossier.py
   test_*.py
 frontend/
