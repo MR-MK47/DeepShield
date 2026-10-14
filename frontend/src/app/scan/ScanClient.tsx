@@ -94,6 +94,7 @@ export default function ScanClient() {
             {operator ? (
               <>
                 <span className="hidden sm:inline">Signed in: {operator.name}</span>
+                <Link href="/history" className="underline hover:text-white">History</Link>
                 <button type="button" onClick={handleLogout} className="underline hover:text-white">Sign out</button>
               </>
             ) : (
