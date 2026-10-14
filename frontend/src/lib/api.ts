@@ -109,6 +109,26 @@ export async function searchMatches(
   return (await response.json()) as Match[]
 }
 
+export async function previewTakedown(
+  targetUrl: string,
+  platform: string,
+  victimName: string,
+  hashSignature: string
+): Promise<{ recipient: string; notice_text: string; notice_type: string }> {
+  const response = await fetch(`${API_BASE}/api/takedown/preview`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      target_url: targetUrl,
+      platform,
+      victim_name: victimName,
+      hash_signature: hashSignature,
+    }),
+  })
+  if (!response.ok) throw await responseError(response, `Notice preview failed (${response.status}).`)
+  return response.json()
+}
+
 export async function dispatchTakedown(
   targetUrl: string,
   platform: string,
