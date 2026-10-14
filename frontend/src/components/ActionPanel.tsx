@@ -186,8 +186,8 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
   const copySignatures = async () => {
     if (!count) return
     const text = selectedMatches
-      .map(match => `Domain: ${match.domain}\\nSimilarity candidate: ${(match.similarity * 100).toFixed(1)}%\\nSignature: ${match.hash_signature || 'Not available'}\\nURL: ${match.url}`)
-      .join('\\n\\n')
+      .map(match => `Domain: ${match.domain}\nSimilarity candidate: ${(match.similarity * 100).toFixed(1)}%\nSignature: ${match.hash_signature || 'Not available'}\nURL: ${match.url}`)
+      .join('\n\n')
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
