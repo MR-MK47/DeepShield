@@ -350,7 +350,11 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
             </div>
 
             {missingEvidence && <p role="alert" className="text-xs text-red-300">This candidate has no evidence signature. Run a fresh search before dispatching.</p>}
-            {dispatchError && <p role="alert" className="text-xs text-red-300 break-words">{dispatchError}</p>}
+            {dispatchError && (
+              <p role="alert" className="text-xs text-red-300 break-words">
+                {dispatchError}{(/Please sign in|Session expired|sign in again/i.test(dispatchError)) && <> <Link href="/login" className="underline">Sign in to continue</Link></>}
+              </p>
+            )}
 
             <button
               type="button"
