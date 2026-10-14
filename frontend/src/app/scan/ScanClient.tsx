@@ -13,10 +13,13 @@ export default function ScanClient() {
   const [scanLoading, setScanLoading] = useState(false)
   const [hasScanned, setHasScanned] = useState(false)
   const [lastQuery, setLastQuery] = useState<string>('')
-  const [lastThreshold, setLastThreshold] = useState<number>(0.55)
+  const [lastThreshold, setLastThreshold] = useState<number>(0.30)
 
   const handleScanStart = useCallback(() => {
     setHasScanned(false)
+    setMatches([])
+    setSelectedIds(new Set())
+    setScanLoading(true)
   }, [])
 
   const handleMatchesFound = useCallback((found: Match[], queryText: string, threshold: number) => {
@@ -66,9 +69,9 @@ export default function ScanClient() {
           </Link>
 
           <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-            <span>DPDP Act 2023 Compliant</span>
+            <Link href="/login" className="hover:text-white underline">Operator sign in</Link>
             <span className="text-slate-800">|</span>
-            <span>RAM Vector Lifecycle</span>
+            <span>Candidate search</span>
           </div>
         </div>
       </header>
@@ -81,7 +84,7 @@ export default function ScanClient() {
             Forensic Deepfake Scan &amp; Impersonation Search
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 leading-normal">
-            Extract ArcFace biometric vectors and query public endpoints for candidate deepfake matches.
+            Extract a face embedding when available, search public image results and review similarity candidates. Results are not proof of synthetic media.
           </p>
         </div>
 
@@ -118,7 +121,7 @@ export default function ScanClient() {
                 No matches found exceeding {thresholdPercent}% similarity{lastQuery ? ` for "${lastQuery}"` : ''}
               </h3>
               <p className="text-xs text-slate-400 leading-normal">
-                The OSINT crawl evaluated candidate public web images against your 512-D face vector, but none scored above the selected threshold ({thresholdPercent}%).
+                The search returned no candidates above the selected similarity threshold ({thresholdPercent}%). This can also happen when an image provider blocks requests or has no useful results.
               </p>
             </div>
 
@@ -126,7 +129,7 @@ export default function ScanClient() {
               <p className="text-xs font-medium text-slate-300">Suggested steps to improve search recall:</p>
               <ul className="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
                 <li>Verify spelling or try alternate name keywords in the target query input.</li>
-                <li>Adjust the similarity threshold slider to a lower setting (e.g. 50% or 45%).</li>
+                <li>Lower the similarity threshold carefully, keeping in mind that lower thresholds can increase false positives.</li>
                 <li>Ensure the uploaded photo has clear facial lighting and un-occluded features.</li>
               </ul>
             </div>
@@ -137,8 +140,8 @@ export default function ScanClient() {
       {/* Minimal Footer */}
       <footer className="border-t border-slate-800 py-4 text-xs text-slate-400 bg-[#080c14]">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between font-mono text-[11px]">
-          <p>DeepShield System &middot; Rule 3(1)(b) IT Rules 2021</p>
-          <p>Zero Biometric Persistence</p>
+          <p>DeepShield &middot; operator-reviewed candidate search</p>
+          <p>Do not treat similarity as proof</p>
         </div>
       </footer>
     </div>
