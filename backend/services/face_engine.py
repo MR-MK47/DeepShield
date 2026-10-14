@@ -1,6 +1,7 @@
 """
-Face Engine — Real face embedding & cosine similarity
-DPDP Act 2023 compliant: all vectors processed in RAM, never persisted to disk.
+Face Engine — face embeddings and typed perceptual-hash fallback.
+The code does not intentionally persist input images/vectors. End-to-end privacy
+or legal compliance must be assessed for the complete runtime and deployment.
 """
 
 from __future__ import annotations
