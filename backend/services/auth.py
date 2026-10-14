@@ -7,6 +7,7 @@ images or biometric vectors.
 from __future__ import annotations
 
 import hashlib
+import json
 import hmac
 import os
 import secrets
@@ -57,6 +58,18 @@ class AuthService:
                 )
             """)
             db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)")
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS scan_history (
+                    scan_id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    query_text TEXT NOT NULL,
+                    threshold REAL NOT NULL,
+                    matches_json TEXT NOT NULL,
+                    match_count INTEGER NOT NULL,
+                    created_at REAL NOT NULL
+                )
+            """)
+            db.execute("CREATE INDEX IF NOT EXISTS idx_scan_history_user_time ON scan_history(user_id, created_at DESC)")
 
     @staticmethod
     def normalize_email(email: str) -> str:
@@ -153,3 +166,69 @@ class AuthService:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with self._connect() as db:
             db.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+
+    def save_scan(
+        self,
+        user_id: int,
+        query_text: str,
+        threshold: float,
+        matches: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Persist only candidate metadata after the operator explicitly opts in.
+
+        Reference images and face vectors are never accepted by this method.
+        """
+        scan_id = secrets.token_urlsafe(16)
+        created_at = time.time()
+        safe_matches = []
+        for match in matches[:100]:
+            safe_matches.append({
+                "url": str(match.get("url", ""))[:2048],
+                "domain": str(match.get("domain", ""))[:255],
+                "similarity": float(match.get("similarity", 0.0)),
+                "thumbnail": str(match.get("thumbnail") or match.get("url", ""))[:2048],
+                "hash_signature": str(match.get("hash_signature") or "")[:200],
+            })
+        encoded = json.dumps(safe_matches, ensure_ascii=False)
+        with self._connect() as db:
+            db.execute(
+                """INSERT INTO scan_history
+                   (scan_id, user_id, query_text, threshold, matches_json, match_count, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (scan_id, user_id, query_text[:200], threshold, encoded, len(safe_matches), created_at),
+            )
+        return {
+            "scan_id": scan_id,
+            "query_text": query_text[:200],
+            "threshold": threshold,
+            "matches": safe_matches,
+            "match_count": len(safe_matches),
+            "created_at": created_at,
+        }
+
+    def list_scans(self, user_id: int, limit: int = 25) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 100))
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT scan_id, query_text, threshold, matches_json, match_count, created_at
+                   FROM scan_history WHERE user_id = ?
+                   ORDER BY created_at DESC LIMIT ?""",
+                (user_id, limit),
+            ).fetchall()
+        return [{
+            "scan_id": row["scan_id"],
+            "query_text": row["query_text"],
+            "threshold": row["threshold"],
+            "matches": json.loads(row["matches_json"]),
+            "match_count": row["match_count"],
+            "created_at": row["created_at"],
+        } for row in rows]
+
+    def delete_scan(self, user_id: int, scan_id: str) -> bool:
+        with self._connect() as db:
+            cursor = db.execute(
+                "DELETE FROM scan_history WHERE user_id = ? AND scan_id = ?",
+                (user_id, scan_id),
+            )
+            return cursor.rowcount > 0
