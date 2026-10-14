@@ -3,6 +3,8 @@
 import { useCallback, useState, useEffect } from 'react'
 import { analyzeImage, searchMatches, type Match } from '@/lib/api'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 interface ImageUploaderProps {
   onMatchesFound: (matches: Match[], queryText: string, threshold: number) => void
   onScanStart?: () => void
@@ -27,9 +29,15 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
   }, [previewUrl])
 
   const handleSelectFile = useCallback((file: File) => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl)
+    if (!file.type.startsWith('image/')) {
+      setError('Choose a valid image file (JPG, PNG, WEBP or GIF).')
+      return
     }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError('The image must be 10 MB or smaller.')
+      return
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
     setSelectedFile(file)
     setPreviewUrl(URL.createObjectURL(file))
     setError(null)
@@ -75,7 +83,6 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
       setProgress(50)
 
       const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold)
-      console.log("DEBUG: Matches received from backend:", matches);
       setProgress(90)
 
       setProgress(100)
@@ -83,7 +90,6 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Scan process failed. Check network connection and retry.'
       setError(errorMsg)
-      onMatchesFound([], queryText, threshold)
     } finally {
       setLoading(false)
       setTimeout(() => setProgress(0), 400)
@@ -122,7 +128,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
             Select or drag a reference image file
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Accepts JPG, PNG, WEBP. ArcFace extracts a 512-dimensional vector in RAM.
+            JPG, PNG, WEBP or GIF · Maximum 10 MB. Face extraction falls back to perceptual hashing when no face embedding is available.
           </p>
         </div>
       ) : (
