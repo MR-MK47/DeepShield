@@ -115,7 +115,7 @@ export default function LandingPage() {
             <div className="text-xs text-slate-400 leading-normal">InsightFace ArcFace Embeddings</div>
           </div>
           <div className="p-5 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-1">
-            <div className="text-3xl font-bold font-mono text-slate-100">0 Bytes</div>
+            <div className="text-3xl font-bold font-mono text-slate-100">Not saved</div>
             <div className="text-xs text-slate-400 leading-normal">Persistent Biometric Storage</div>
           </div>
           <div className="p-5 rounded-xl bg-slate-900/40 border border-slate-800/80 space-y-1">
@@ -221,7 +221,7 @@ export default function LandingPage() {
               Asymmetric Forensic &amp; Legal Infrastructure
             </h2>
             <p className="text-sm text-slate-400 leading-[1.7]">
-              DeepShield decouples visual feature extraction from permanent storage. By combining InsightFace ArcFace vectors with OSINT crawling and statutory grievance templates, operators execute end-to-end takedowns without privacy liability.
+              DeepShield combines image similarity analysis with public image search and operator-reviewed reporting. It helps organize candidate URLs for human review; it does not independently prove that an image is synthetic, determine legal liability or guarantee a takedown.
             </p>
             <div className="pt-2">
               <Link
@@ -240,11 +240,11 @@ export default function LandingPage() {
           <div className="lg:col-span-3 space-y-4">
             <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-100 font-display">In-Memory Biometric Isolation</h3>
-                <span className="text-xs font-mono text-blue-400">DPDP Act 2023</span>
+                <h3 className="text-base font-bold text-slate-100 font-display">In-memory image processing</h3>
+                <span className="text-xs font-mono text-blue-400">Application behavior</span>
               </div>
               <p className="text-xs text-slate-400 leading-[1.7]">
-                Reference photos uploaded to `/api/analyze` are processed in RAM to extract 512-D ArcFace vectors. Both reference images and vector arrays are purged immediately post-scan.
+                Reference uploads are processed in memory by the application and are not intentionally written to the account database. Model caches, server logs and the hosting environment require separate review before making any formal privacy-compliance claim.
               </p>
             </div>
 
@@ -264,7 +264,7 @@ export default function LandingPage() {
                 <span className="text-xs font-mono text-blue-400">IT Rules 2021</span>
               </div>
               <p className="text-xs text-slate-400 leading-[1.7]">
-                Selected candidate matches trigger automated formatting of statutory Rule 3(1)(b) legal takedown notices, mapped directly to designated host platform Grievance Officers.
+                For a selected candidate, a signed-in operator can inspect a draft notice and configured recipient before confirming. Real sending requires live email mode, a valid provider key and independently verified contact details.
               </p>
             </div>
           </div>
@@ -360,10 +360,10 @@ export default function LandingPage() {
       <section className="max-w-6xl mx-auto px-6 py-16 border-t border-slate-800 w-full">
         <div className="p-10 sm:p-14 rounded-3xl bg-slate-900 border border-slate-800 text-center shadow-2xl space-y-6">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-display text-slate-100 tracking-tight leading-[1.15]">
-            Execute Forensic Search &amp; Eradicate Deepfakes
+            Search image results and review candidates
           </h2>
           <p className="text-sm sm:text-base text-slate-400 max-w-xl mx-auto leading-[1.7]">
-            Upload reference media, extract 512-D ArcFace vectors in RAM, and dispatch statutory Rule 3(1)(b) IT Rules legal notices.
+            Upload a reference image, search public image results for similarity candidates, inspect the source URLs and optionally prepare an evidence report. Any notice must be reviewed before use.
           </p>
           <div>
             <Link
@@ -390,7 +390,7 @@ export default function LandingPage() {
               <span className="font-bold text-slate-200 font-display text-base">DeepShield</span>
             </div>
             <p className="text-xs text-slate-400 leading-[1.7] max-w-md">
-              AI-Powered Deepfake Search &amp; Eradication Engine. Extracts zero-biometric ArcFace vectors in RAM and automates Rule 3(1)(b) IT Rules 2021 statutory takedown notices.
+              Public image similarity candidates, operator-reviewed evidence reports and a notice-preview workflow. Similarity does not establish that media is synthetic or unlawful.
             </p>
           </div>
 
@@ -398,8 +398,8 @@ export default function LandingPage() {
             <h4 className="font-bold text-slate-200 font-display text-xs uppercase tracking-wider">Statutory Framework</h4>
             <ul className="space-y-2 font-mono text-[11px] text-slate-400">
               <li>Section 3(1)(b) IT Rules 2021</li>
-              <li>DPDP Act 2023 Compliance</li>
-              <li>PDQ &amp; pHash NCII Standards</li>
+              <li>Privacy claims depend on runtime and deployment</li>
+              <li>pHash / optional PDQ candidate signatures</li>
             </ul>
           </div>
 
@@ -408,7 +408,7 @@ export default function LandingPage() {
             <ul className="space-y-2 font-mono text-[11px] text-slate-400">
               <li>Python FastAPI &amp; InsightFace</li>
               <li>Next.js 14 &amp; Tailwind CSS</li>
-              <li>100% Free Open Stack</li>
+              <li>Open-source core; external services may have limits or costs</li>
             </ul>
           </div>
         </div>
