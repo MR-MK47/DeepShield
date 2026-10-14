@@ -37,7 +37,7 @@ copy .env.example .env
 uvicorn main:app --reload --port 8000
 ~~~
 
-For ordinary local testing, keep NOTICE_EMAIL_MODE=mock: you can exercise the full notice preview/confirmation workflow, and the interface will clearly say that no email was sent. To enable a real external email, deliberately set NOTICE_EMAIL_MODE=resend and configure RESEND_API_KEY, RESEND_FROM_EMAIL, CORS_ORIGINS, plus the relevant verified platform contact (META_GRIEVANCE_EMAIL, GOOGLE_ABUSE_EMAIL, X_ABUSE_EMAIL or TIKTOK_LEGAL_EMAIL). Missing/unverified contacts block live delivery. Never commit your real .env.
+If you already have a local .env, keep it; do not overwrite it. Add new settings from .env.example only when missing. For ordinary local testing, keep NOTICE_EMAIL_MODE=mock: you can exercise the full notice preview/confirmation workflow, and the interface will clearly say that no email was sent. To enable a real external email, deliberately set NOTICE_EMAIL_MODE=resend and configure RESEND_API_KEY, RESEND_FROM_EMAIL, CORS_ORIGINS, plus the relevant verified platform contact (META_GRIEVANCE_EMAIL, GOOGLE_ABUSE_EMAIL, X_ABUSE_EMAIL or TIKTOK_LEGAL_EMAIL). Missing/unverified contacts block live delivery. Never commit your real .env.
 
 For a quick offline-safe smoke test without downloading a face model, set DEEPSHIELD_DISABLE_FACE_MODEL=1 in the terminal before starting the backend. This uses pHash fallback and is **not** a test of ArcFace accuracy.
 
@@ -117,16 +117,21 @@ The default local test mode never sends real emails. Automated tests also mock t
 
 | Method | Endpoint | Purpose | Authentication |
 |---|---|---|---|
-| GET | / | Health check | No |
-| GET | /api/health | Health check | No |
-| POST | /api/auth/register | Create operator account | No |
-| POST | /api/auth/login | Sign in and receive session token | No |
-| GET | /api/auth/me | Get current operator | Bearer token |
-| POST | /api/auth/logout | Revoke session | Bearer token optional |
-| POST | /api/analyze | Validate image and generate vector/signature | No |
-| POST | /api/search | Search image candidates by vector and threshold | No |
-| POST | /api/dossier | Generate candidate-evidence PDF | Bearer token |
-| POST | /api/takedown/email | Submit reviewed notice request via Resend | Bearer token |
+| GET | `/` | Health check | No |
+| GET | `/api/health` | Health check | No |
+| POST | `/api/auth/register` | Create operator account | No |
+| POST | `/api/auth/login` | Sign in and receive session token | No |
+| GET | `/api/auth/me` | Get current operator | Bearer token |
+| POST | `/api/auth/logout` | Revoke session | Bearer token optional |
+| POST | `/api/analyze` | Validate image and generate vector/signature | No |
+| POST | `/api/search` | Search candidates; optional opt-in history save | No (Bearer token required to save) |
+| POST | `/api/scan` | Combined image analysis and candidate search | No (Bearer token required to save history) |
+| GET | `/api/matches` | List the operator's explicitly saved scans | Bearer token |
+| DELETE | `/api/matches/{scan_id}` | Delete a saved scan | Bearer token |
+| POST | `/api/dossier` | Generate candidate-evidence PDF | Bearer token |
+| POST | `/api/takedown/preview` | Prepare preview without sending email | Bearer token |
+| POST | `/api/legal-notice` | Alias for the no-send notice preview | Bearer token |
+| POST | `/api/takedown/email` | Submit a reviewed preview in test mode or via Resend | Bearer token |
 
 ## Important configuration and scope
 
