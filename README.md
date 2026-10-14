@@ -11,7 +11,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Perceptual hashing using standard pHash. Genuine PDQ hashing is used only when the optional pdqhash native binding is installed; installation may require platform-specific build support.
 - Public image discovery using DDGS, bounded remote image downloads, URL safety checks and similarity candidate filtering.
 - Local operator registration and login, password hashing, expiring server-side sessions and authenticated legal/report endpoints.
-- Explicit review before sending legal-notice requests, actual Resend provider submission (no simulated success), and PDF candidate-evidence reports.
+- Explicit review before legal-notice submission, a safe local no-send test mode, actual Resend provider submission when deliberately enabled, and PDF candidate-evidence reports.
 - No intentional application-level persistence of reference image uploads or extracted vector data. Verify the complete hosting/runtime stack before making formal privacy-compliance claims.
 
 ## Requirements
