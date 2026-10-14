@@ -8,11 +8,6 @@ venv/
 ENV/
 env/
 
-# InsightFace Models & Heavy AI Weights (Over 100MB)
-.insightface/
-*.onnx
-*.zip
-
 # Distribution / packaging
 dist/
 build/

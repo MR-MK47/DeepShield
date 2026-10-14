@@ -16,7 +16,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [queryText, setQueryText] = useState('')
-  const [threshold, setThreshold] = useState<number>(0.55)
+  const [threshold, setThreshold] = useState<number>(0.30)
 
   useEffect(() => {
     return () => {
@@ -75,6 +75,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart }: ImageUplo
       setProgress(50)
 
       const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold)
+      console.log("DEBUG: Matches received from backend:", matches);
       setProgress(90)
 
       setProgress(100)

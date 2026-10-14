@@ -7,15 +7,7 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 from typing import List
-
-# Limit OpenMP threads to 1 to prevent memory spikes in resource-constrained environments (e.g., 512MB RAM)
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import numpy as np
 from PIL import Image
@@ -23,17 +15,56 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 # InsightFace singleton — loaded once per process.
-# We use buffalo_sc (16MB lightweight model) to fit within 512MB RAM limits.
+# We use buffalo_l (tiny but accurate) to keep memory low.
 try:
     from insightface.app import FaceAnalysis
-    _face_app = FaceAnalysis(name="buffalo_sc", root=".insightface")
+    _face_app = FaceAnalysis(name="buffalo_l", root=".insightface")
     _face_app.prepare(ctx_id=0, det_size=(640, 640))
     _FACE_ENGINE_AVAILABLE = True
-    logger.info("insightface buffalo_sc model loaded (512-D ArcFace embeddings)")
+    logger.info("insightface buffalo_l model loaded (512-D ArcFace embeddings)")
 except Exception as exc:  # pragma: no cover — graceful degrade
     logger.warning("insightface unavailable: %s — falling back to pHash vectors", exc)
     _face_app = None
     _FACE_ENGINE_AVAILABLE = False
+
+
+def extract_face_vector_with_kind(image_bytes: bytes) -> tuple[List[float], str]:
+    """
+    Like :func:`extract_face_vector` but also returns the vector *kind*:
+
+    * ``"arcface"`` — a real 512-D ArcFace biometric embedding (face found).
+    * ``"phash"``   — a perceptual-hash fallback (no face detected).
+    * ``""``        — decoding failed (empty vector).
+
+    Callers MUST only compare vectors of the same kind; an ArcFace embedding
+    and a pHash vector are not in the same space and their cosine similarity
+    is meaningless noise.
+    """
+    try:
+        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception as exc:
+        logger.warning("Could not decode image: %s", exc)
+        return [], ""
+
+    arr = np.array(pil_img)
+
+    if _FACE_ENGINE_AVAILABLE and _face_app is not None:
+        try:
+            faces = _face_app.get(arr)
+            if faces:
+                # Take the largest face (by bounding-box area).
+                largest = max(faces, key=lambda f: f.bbox[2] * f.bbox[3])
+                embedding = largest.embedding  # 512-D float32, already L2-normalised
+                logger.info("Used ArcFace embedding")
+                return embedding.tolist(), "arcface"
+            else:
+                logger.info("No face detected by InsightFace")
+        except Exception as exc:  # pragma: no cover
+            logger.warning("insightface embedding failed: %s — falling back", exc)
+
+    # Fallback: pHash → 512-D normalised vector (perceptual, not biometric)
+    logger.info("Used pHash fallback")
+    return _phash_vector(pil_img), "phash"
 
 
 def extract_face_vector(image_bytes: bytes) -> List[float]:
@@ -46,27 +77,26 @@ def extract_face_vector(image_bytes: bytes) -> List[float]:
 
     Returns an empty list when the image cannot be decoded at all.
     """
-    try:
-        pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    except Exception as exc:
-        logger.warning("Could not decode image: %s", exc)
-        return []
+    vec, _kind = extract_face_vector_with_kind(image_bytes)
+    return vec
 
-    arr = np.array(pil_img)
 
-    if _FACE_ENGINE_AVAILABLE and _face_app is not None:
-        try:
-            faces = _face_app.get(arr)
-            if faces:
-                # Take the largest face (by bounding-box area).
-                largest = max(faces, key=lambda f: f.bbox[2] * f.bbox[3])
-                embedding = largest.embedding  # 512-D float32, already L2-normalised
-                return embedding.tolist()
-        except Exception as exc:  # pragma: no cover
-            logger.warning("insightface embedding failed: %s — falling back", exc)
+def vector_kind(vec: List[float]) -> str:
+    """
+    Best-effort classification of a bare 512-D vector when its provenance is
+    unknown (e.g. a query vector that travelled through JSON).
 
-    # Fallback: pHash → 512-D normalised vector (perceptual, not biometric)
-    return _phash_vector(pil_img)
+    pHash fallback vectors are produced by L2-normalising a ±1 bit vector, so
+    every component has an identical magnitude (~1/sqrt(512)).  ArcFace
+    embeddings have a continuous distribution of magnitudes.  We exploit that
+    to tell them apart.
+    """
+    if not vec:
+        return ""
+    a = np.abs(np.asarray(vec, dtype=np.float64))
+    if a.size and a.max() > 0 and (a.max() - a.min()) < 1e-6:
+        return "phash"
+    return "arcface"
 
 
 def compute_similarity(vec1: List[float], vec2: List[float]) -> float:

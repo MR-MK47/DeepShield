@@ -67,8 +67,17 @@ export async function dispatchTakedown(
   return res.json()
 }
 
-export async function generateDossier(matches: Match[]): Promise<Blob> {
-  // Dossier generation is backend-side; placeholder for Phase 4
-  // Returns an empty blob to indicate client-side stub
-  return new Blob([], { type: 'application/pdf' })
+export async function generateDossier(matches: Match[], victimName: string = 'Aggrieved Individual'): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/api/dossier`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ victim_name: victimName, matches }),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as any).detail || `Dossier generation failed: ${res.statusText}`)
+  }
+
+  return res.blob()
 }

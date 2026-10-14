@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { type Match } from '@/lib/api'
-import { dispatchTakedown } from '@/lib/api'
+import { dispatchTakedown, generateDossier } from '@/lib/api'
 
 interface ActionPanelProps {
   selectedMatches: Match[]
@@ -19,6 +19,9 @@ export default function ActionPanel({ selectedMatches, loading: scanLoading }: A
 
   const count = selectedMatches.length
   const ready = count > 0 && !scanLoading
+
+  const [dossierLoading, setDossierLoading] = useState(false)
+  const [dossierError, setDossierError] = useState<string>('')
 
   const handleDispatch = async () => {
     if (count === 0) return
@@ -37,8 +40,25 @@ export default function ActionPanel({ selectedMatches, loading: scanLoading }: A
     }
   }
 
-  const handleDossier = () => {
-    alert('Cybercrime Dossier (PDF) generation stub.\nSelected candidates: ' + count)
+  const handleDossier = async () => {
+    if (count === 0) return
+    setDossierLoading(true)
+    setDossierError('')
+    try {
+      const pdfBlob = await generateDossier(selectedMatches, 'Aggrieved Individual')
+      const url = window.URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `DeepShield_Cybercrime_Dossier_${Date.now()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setDossierError(err instanceof Error ? err.message : 'Failed to generate dossier PDF')
+    } finally {
+      setDossierLoading(false)
+    }
   }
 
   const handleCopyHashes = () => {
@@ -108,19 +128,33 @@ export default function ActionPanel({ selectedMatches, loading: scanLoading }: A
         </div>
 
         {/* Action 2: Generate Cybercrime Dossier */}
-        <button
-          onClick={handleDossier}
-          disabled={!ready}
-          className={`
-            w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left transition-colors border
-            ${ready
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer'
-              : 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed'}
-          `}
-        >
-          <div className="font-semibold">Generate Cybercrime Dossier</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">ReportLab PDF &amp; Evidence Packet</div>
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={handleDossier}
+            disabled={!ready || dossierLoading}
+            className={`
+              w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left flex items-center justify-between transition-colors border
+              ${ready && !dossierLoading
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 cursor-pointer'
+                : 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed'}
+            `}
+          >
+            <div>
+              <div className="font-semibold">Generate Cybercrime Dossier</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">ReportLab PDF &amp; Evidence Packet</div>
+            </div>
+            {dossierLoading && (
+              <div className="w-4 h-4 border-2 border-slate-400 border-t-blue-500 rounded-full animate-spin shrink-0" />
+            )}
+          </button>
+
+          {dossierError && (
+            <div className="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-200 text-xs">
+              <p className="font-semibold">Dossier Error</p>
+              <p className="text-[11px] text-red-300 mt-0.5">{dossierError}</p>
+            </div>
+          )}
+        </div>
 
         {/* Action 3: Copy Hash Signatures */}
         <button
