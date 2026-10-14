@@ -37,7 +37,7 @@ class LegalEmail:
         except ValueError as exc:
             raise ValueError("SMTP_PORT must be an integer.") from exc
         self.smtp_username = os.getenv("SMTP_USERNAME", "").strip()
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "").strip()
+        self.smtp_password = os.getenv("SMTP_PASSWORD", "").replace(" ", "").strip()
         self.smtp_from_email = (
             os.getenv("SMTP_FROM_EMAIL", "").strip() or self.smtp_username
         )
@@ -94,7 +94,7 @@ This is a report template, not legal advice or a guarantee of removal timing.
         hash_signature: str,
         from_email: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Run a no-send local test or submit a notice to Resend."""
+        """Run a no-send local test or submit a notice using SMTP or Resend."""
         now_iso = datetime.now(timezone.utc).isoformat()
         if self.mode == "mock":
             logger.warning(
@@ -178,12 +178,12 @@ This is a report template, not legal advice or a guarantee of removal timing.
             raise RuntimeError("The signed-in operator account does not have a valid email address.")
         sent_at = datetime.now(timezone.utc).isoformat()
         body = (
-            "DeepShield SMTP delivery test\\n\\n"
-            f"Hello {operator_name},\\n\\n"
+            "DeepShield SMTP delivery test\n\n"
+            f"Hello {operator_name},\n\n"
             "This message was submitted by DeepShield using the SMTP server configured "
             "in your local backend environment. If you receive it in this mailbox, "
-            "the application's authenticated SMTP delivery path is working.\\n\\n"
-            f"Sent at (UTC): {sent_at}\\n"
+            "the application's authenticated SMTP delivery path is working.\n\n"
+            f"Sent at (UTC): {sent_at}\n"
             "Note: SMTP server acceptance does not guarantee inbox placement; check spam "
             "or junk folders if it is not visible in the inbox."
         )
