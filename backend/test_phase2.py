@@ -246,3 +246,31 @@ def test_notice_preview_rejects_invalid_custom_recipient():
         },
     )
     assert response.status_code == 422
+
+
+
+def test_resend_service_submits_editable_external_recipient(monkeypatch):
+    from services import legal_email as legal_email_module
+    from services.legal_email import LegalEmail
+
+    captured = {}
+
+    def fake_send(params):
+        captured.update(params)
+        return {"id": "email_test_123"}
+
+    monkeypatch.setattr(legal_email_module.resend.Emails, "send", fake_send)
+    service = LegalEmail(api_key="re_test_key_for_unit_test", mode="resend")
+    result = service.send_notice(
+        to_email="copyright@example.org",
+        victim_name="Test Complainant",
+        platform_name="example.org",
+        content_url="https://example.org/content.jpg",
+        hash_signature="sha256:" + "e" * 64,
+        from_email="DeepShield Test <sender@example.test>",
+    )
+
+    assert captured["to"] == ["copyright@example.org"]
+    assert captured["subject"].endswith("example.org")
+    assert result["status"] == "accepted_by_provider"
+    assert result["id"] == "email_test_123"
