@@ -14,19 +14,50 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-# InsightFace singleton — loaded once per process.
-# We use buffalo_l (tiny but accurate) to keep memory low.
-try:
-    from insightface.app import FaceAnalysis
-    _face_app = FaceAnalysis(name="buffalo_l", root=".insightface")
-    _face_app.prepare(ctx_id=0, det_size=(640, 640))
-    _FACE_ENGINE_AVAILABLE = True
-    logger.info("insightface buffalo_l model loaded (512-D ArcFace embeddings)")
-except Exception as exc:  # pragma: no cover — graceful degrade
-    logger.warning("insightface unavailable: %s — falling back to pHash vectors", exc)
-    _face_app = None
-    _FACE_ENGINE_AVAILABLE = False
+# Initialize the optional face model only when the first image is analysed.
+# This keeps API startup and unit tests fast and works offline using pHash fallback.
+import os
+import threading
+from pathlib import Path
 
+_face_app = None
+_FACE_ENGINE_AVAILABLE: bool | None = None
+_face_lock = threading.Lock()
+
+
+def _get_face_app():
+    global _face_app, _FACE_ENGINE_AVAILABLE
+    if _FACE_ENGINE_AVAILABLE is False:
+        return None
+    if _face_app is not None:
+        return _face_app
+    with _face_lock:
+        if _face_app is not None:
+            return _face_app
+        if _FACE_ENGINE_AVAILABLE is False:
+            return None
+        if os.getenv("DEEPSHIELD_DISABLE_FACE_MODEL", "").lower() in {"1", "true", "yes"}:
+            _FACE_ENGINE_AVAILABLE = False
+            logger.info("Face model disabled by DEEPSHIELD_DISABLE_FACE_MODEL; using pHash fallback")
+            return None
+        try:
+            from insightface.app import FaceAnalysis
+            model_root = os.getenv(
+                "INSIGHTFACE_ROOT", str(Path(__file__).resolve().parents[1] / ".insightface")
+            )
+            app = FaceAnalysis(
+                name=os.getenv("INSIGHTFACE_MODEL", "buffalo_l"),
+                root=model_root,
+                providers=["CPUExecutionProvider"],
+            )
+            app.prepare(ctx_id=-1, det_size=(640, 640))
+            _face_app = app
+            _FACE_ENGINE_AVAILABLE = True
+            logger.info("InsightFace model loaded")
+        except Exception as exc:  # missing model or optional dependency: fall back explicitly
+            _FACE_ENGINE_AVAILABLE = False
+            logger.warning("InsightFace unavailable (%s); using pHash fallback until restart", exc)
+    return _face_app
 
 def extract_face_vector_with_kind(image_bytes: bytes) -> tuple[List[float], str]:
     """
@@ -48,9 +79,10 @@ def extract_face_vector_with_kind(image_bytes: bytes) -> tuple[List[float], str]
 
     arr = np.array(pil_img)
 
-    if _FACE_ENGINE_AVAILABLE and _face_app is not None:
+    face_app = _get_face_app()
+    if face_app is not None:
         try:
-            faces = _face_app.get(arr)
+            faces = face_app.get(arr)
             if faces:
                 # Take the face with the largest actual bounding-box area.
                 largest = max(
