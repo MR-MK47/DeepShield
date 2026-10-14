@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
 
 from dotenv import load_dotenv
 
@@ -125,6 +126,14 @@ def _current_user(authorization: str | None = Header(default=None)) -> dict:
     if user is None:
         raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
     return user
+
+
+def _validate_evidence_signature(value: str) -> None:
+    if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", value):
+        raise HTTPException(
+            status_code=422,
+            detail="A candidate SHA-256 content signature is required; run a fresh search before reporting this item.",
+        )
 
 
 def _validate_http_url(value: str) -> None:
@@ -265,6 +274,7 @@ async def preview_takedown_email(
 ) -> dict:
     """Return the exact recipient and notice text for operator review; sends nothing."""
     _validate_http_url(request.target_url)
+    _validate_evidence_signature(request.hash_signature)
     recipient = _PLATFORM_RECIPIENTS[request.platform]
     if not recipient:
         raise HTTPException(
