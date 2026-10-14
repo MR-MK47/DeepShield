@@ -16,7 +16,7 @@ const checks = [
     const api = read('src/lib/api.ts')
     return ['analyzeImage', 'searchMatches', 'dispatchTakedown', 'generateDossier'].every(name => api.includes('function ' + name))
   }],
-  ['legal notice requires confirmation', () => read('src/components/ActionPanel.tsx').includes('Confirm and send')],
+  ['legal notice requires confirmation', () => read('src/components/ActionPanel.tsx').includes('I reviewed the draft — send notice') && read('src/components/ActionPanel.tsx').includes('Load recipient and notice preview')],
   ['notice and dossier API calls attach operator authorization', () => {
     const api = read('src/lib/api.ts')
     return api.includes('authHeaders') && api.includes('/api/takedown/email') && api.includes('/api/dossier')
