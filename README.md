@@ -111,7 +111,7 @@ npm run lint
 npm run build
 ~~~
 
-The default local test mode never sends real emails. Automated tests also mock the provider and do not send external messages. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
+Automated tests always mock the Resend provider and never send external messages. To force no-send behavior locally even when an API key is configured, set NOTICE_EMAIL_MODE=mock. With NOTICE_EMAIL_MODE=auto, a configured RESEND_API_KEY selects Resend, and a missing key falls back to no-send test mode. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
 
 ## API endpoints
 
