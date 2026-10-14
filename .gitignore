@@ -19,3 +19,5 @@ backend/.insightface/
 *.pdf
 .DS_Store
 Thumbs.db
+.pytest_cache/
+*-local-command-*.txt
