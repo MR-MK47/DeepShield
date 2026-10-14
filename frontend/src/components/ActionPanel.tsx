@@ -12,6 +12,7 @@ type Platform = 'Meta' | 'Google' | 'X' | 'TikTok'
 interface NoticePreview {
   preview_id: string
   recipient: string
+  delivery_mode: 'mock' | 'resend'
   notice_text: string
   notice_type: string
 }
@@ -71,7 +72,9 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
     try {
       const result = await dispatchTakedown(preview.preview_id)
       setDispatchMessage(
-        `Email provider accepted the request for ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). This does not mean the content has been removed.`,
+        result.status === 'simulated_not_sent'
+          ? 'Local test mode completed successfully. No email was sent. Set NOTICE_EMAIL_MODE=resend, a valid Resend key, and verified contacts to enable real delivery.'
+          : `Email provider accepted the request for ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). This does not mean the content has been removed.`,
       )
       setShowReview(false)
     } catch (error) {
@@ -210,7 +213,11 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
             {preview && (
               <section className="space-y-2 border border-slate-700 rounded-lg p-3">
                 <p className="text-sm font-semibold text-white">Recipient: <span className="font-normal">{preview.recipient}</span></p>
-                <p className="text-[11px] text-amber-200">Confirm this is the correct, independently verified grievance/contact address. Provider acceptance does not guarantee platform action.</p>
+                {preview.delivery_mode === 'mock' ? (
+                  <p className="text-[11px] text-amber-200">Local test mode is active. Confirming runs the workflow only; no email leaves this application.</p>
+                ) : (
+                  <p className="text-[11px] text-amber-200">Confirm this is the correct, independently verified grievance/contact address. Provider acceptance does not guarantee platform action.</p>
+                )}
                 <label htmlFor="notice-text" className="block text-xs text-slate-300">Exact notice text to be sent</label>
                 <textarea id="notice-text" readOnly value={preview.notice_text} rows={10} className="w-full bg-slate-950 border border-slate-700 rounded-md p-3 text-xs text-slate-300 leading-relaxed" />
               </section>
@@ -218,7 +225,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button type="button" onClick={() => setShowReview(false)} disabled={dispatchLoading || previewLoading} className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-50">Cancel</button>
               <button type="button" onClick={confirmDispatch} disabled={!preview || dispatchLoading || previewLoading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
-                {dispatchLoading ? 'Sending…' : 'I reviewed the draft — send notice'}
+                {dispatchLoading ? 'Submitting…' : preview?.delivery_mode === 'mock' ? 'Confirm test run — no email sent' : 'I reviewed the draft — send notice'}
               </button>
             </div>
           </div>
