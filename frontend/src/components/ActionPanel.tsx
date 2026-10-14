@@ -10,6 +10,7 @@ interface ActionPanelProps {
 }
 type Platform = 'Meta' | 'Google' | 'X' | 'TikTok'
 interface NoticePreview {
+  preview_id: string
   recipient: string
   notice_text: string
   notice_type: string
@@ -68,13 +69,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
     setDispatchError('')
     setDispatchMessage('')
     try {
-      const match = selectedMatches[0]
-      const result = await dispatchTakedown(
-        match.url,
-        platform,
-        victimName.trim() || 'Aggrieved Individual',
-        match.hash_signature as string,
-      )
+      const result = await dispatchTakedown(preview.preview_id)
       setDispatchMessage(
         `Email provider accepted the request for ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). This does not mean the content has been removed.`,
       )
