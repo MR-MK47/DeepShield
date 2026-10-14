@@ -123,7 +123,7 @@ def test_cors_preflight_for_local_frontend():
     assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
 
 
-def test_combined_scan_endpoint_analyzes_and_searches(monkeypatch, sample_image_bytes):
+def test_combined_scan_endpoint_analyzes_and_searches(monkeypatch):
     expected = [{
         "url": "https://example.com/combined.jpg",
         "domain": "example.com",
@@ -134,7 +134,7 @@ def test_combined_scan_endpoint_analyzes_and_searches(monkeypatch, sample_image_
     monkeypatch.setattr(main, "search_deepfake_candidates", lambda **kwargs: expected)
     response = client.post(
         "/api/scan",
-        files={"file": ("reference.png", sample_image_bytes, "image/png")},
+        files={"file": ("reference.png", image_bytes(), "image/png")},
         data={"query_text": "demo subject", "threshold": "0.3"},
     )
     assert response.status_code == 200, response.text
