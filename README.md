@@ -11,7 +11,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Perceptual hashing using standard pHash. Genuine PDQ hashing is used only when the optional pdqhash native binding is installed; installation may require platform-specific build support.
 - Public image discovery using DDGS, bounded remote image downloads, URL safety checks and similarity candidate filtering.
 - Local operator registration and login, password hashing, expiring server-side sessions and authenticated legal/report endpoints.
-- Explicit review before legal-notice submission, a safe local no-send test mode, actual Resend provider submission when deliberately enabled, and PDF candidate-evidence reports.
+- A review modal rendered above the result grid, website-specific contact discovery from public homepage/contact/privacy/legal pages, an editable email recipient, a no-send local test mode, Resend submission after explicit confirmation, and PDF candidate-evidence reports.
 - No intentional application-level persistence of reference image uploads or extracted vector data. Verify the complete hosting/runtime stack before making formal privacy-compliance claims.
 
 ## Requirements
@@ -19,7 +19,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Python 3.11 recommended.
 - Node.js 18.17+ (Node 20 LTS recommended) and npm.
 - Network access is needed for public image search. Real ArcFace analysis may download InsightFace model files on first use; without a usable model, the API can fall back to pHash.
-- The default NOTICE_EMAIL_MODE=mock exercises the preview/confirmation flow without sending email. Preview requires authentication; actual sending can only consume a short-lived preview created by the same operator. Live sending requires NOTICE_EMAIL_MODE=resend, a valid Resend API key, a verified sender, and explicitly configured, independently verified platform recipient addresses. A provider acceptance does not guarantee platform action.
+- The default NOTICE_EMAIL_MODE=mock exercises preview and confirmation without sending email. The app can search public contact pages on the matched website and shows the source page for discovered email addresses; operators can edit the address manually. Preview and dispatch require authentication, and dispatch consumes a short-lived preview created by the same operator. Live sending requires NOTICE_EMAIL_MODE=resend, RESEND_API_KEY, and a sender address on a domain verified in Resend. A provider acceptance is not proof of delivery or removal.
 
 ## Setup on Windows
 
@@ -37,7 +37,7 @@ copy .env.example .env
 uvicorn main:app --reload --port 8000
 ~~~
 
-If you already have a local .env, keep it; do not overwrite it. Add new settings from .env.example only when missing. For ordinary local testing, keep NOTICE_EMAIL_MODE=mock: you can exercise the full notice preview/confirmation workflow, and the interface will clearly say that no email was sent. To enable a real external email, deliberately set NOTICE_EMAIL_MODE=resend and configure RESEND_API_KEY, RESEND_FROM_EMAIL, CORS_ORIGINS, plus the relevant verified platform contact (META_GRIEVANCE_EMAIL, GOOGLE_ABUSE_EMAIL, X_ABUSE_EMAIL or TIKTOK_LEGAL_EMAIL). Missing/unverified contacts block live delivery. Never commit your real .env.
+If you already have a local .env, keep it; do not overwrite it. Add new settings from .env.example only when missing. Local testing uses NOTICE_EMAIL_MODE=mock and will clearly say that no email was sent. To enable real external delivery, set NOTICE_EMAIL_MODE=resend, configure RESEND_API_KEY, and set RESEND_FROM_EMAIL to an address on a domain verified in your Resend account (the sample onboarding@resend.dev sender is for Resend testing and may not deliver to arbitrary external recipients). On confirmation, the backend submits the reviewed notice to Resend using the editable recipient. Contact discovery only suggests public email addresses; verify the right department and exact recipient before sending. Never commit your real .env.
 
 For a quick offline-safe smoke test without downloading a face model, set DEEPSHIELD_DISABLE_FACE_MODEL=1 in the terminal before starting the backend. This uses pHash fallback and is **not** a test of ArcFace accuracy.
 
@@ -129,7 +129,8 @@ The default local test mode never sends real emails. Automated tests also mock t
 | GET | `/api/matches` | List the operator's explicitly saved scans | Bearer token |
 | DELETE | `/api/matches/{scan_id}` | Delete a saved scan | Bearer token |
 | POST | `/api/dossier` | Generate candidate-evidence PDF | Bearer token |
-| POST | `/api/takedown/preview` | Prepare preview without sending email | Bearer token |
+| POST | `/api/takedown/contact-suggestions` | Search public pages on the result website for contact emails | Bearer token |
+| POST | `/api/takedown/preview` | Prepare preview using an editable recipient without sending email | Bearer token |
 | POST | `/api/legal-notice` | Alias for the no-send notice preview | Bearer token |
 | POST | `/api/takedown/email` | Submit a reviewed preview in test mode or via Resend | Bearer token |
 
@@ -137,7 +138,7 @@ The default local test mode never sends real emails. Automated tests also mock t
 
 Backend environment settings are documented in backend/.env.example; frontend settings are documented in frontend/.env.example. Local operator accounts are stored in a SQLite file ignored by Git, and session token hashes—not raw tokens—are stored in the database.
 
-Configure CORS_ORIGINS to exactly match the frontend origins you use. Configure platform contact variables only after independently verifying the intended recipients. Do not treat old prototype recipient addresses as verified current grievance contacts.
+Configure CORS_ORIGINS to exactly match the frontend origins you use. The current notice workflow no longer assumes that every result belongs to Meta, Google, X, or TikTok. It checks public pages on the matched result host for visible contact emails and shows source links; if none are found, the recipient field remains editable for a manually verified address. An address discovered on a public page is only a suggestion, not confirmation that it is the designated legal or copyright department.
 
 The login/session features do not currently include email-based password recovery, multi-factor authentication, a hosted user-management console, or role administration. Saved scan history is optional and off by default. When an operator explicitly checks “Save these results to my account history,” only candidate URLs, domains, scores, signatures, query text and timestamps are saved under that account; uploaded reference images and face vectors are not included. History is visible at /history and can be deleted per scan.
 
