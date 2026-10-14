@@ -242,3 +242,16 @@ def test_notice_preview_rejects_local_network_url():
         },
     )
     assert response.status_code == 422
+
+
+def test_send_notice_rejects_resend_test_sender_for_external_contacts():
+    service = LegalEmail(api_key="re_test_key_for_mocking_only", mode="resend")
+    with pytest.raises(RuntimeError, match="domain verified in your Resend account"):
+        service.send_notice(
+            to_email="contact@external.example",
+            victim_name="Test User",
+            platform_name="external.example",
+            content_url="https://external.example/content.jpg",
+            hash_signature="sha256:" + "f" * 64,
+            from_email="DeepShield Legal <onboarding@resend.dev>",
+        )
