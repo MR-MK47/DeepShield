@@ -378,7 +378,7 @@ async def preview_takedown_email(
     _validate_http_url(request.target_url)
     _validate_evidence_signature(request.hash_signature)
     recipient = request.recipient.strip()
-    if not re.fullmatch(r"[^@\\s]{1,128}@[^@\\s.]+(?:\\.[^@\\s.]+)+", recipient):
+    if not re.fullmatch(r"[^@\s]{1,128}@[^@\s.]+(?:\.[^@\s.]+)+", recipient):
         raise HTTPException(status_code=422, detail="Enter a valid recipient email address.")
     target_domain = (urlparse(request.target_url).hostname or "").lower()
     platform_name = target_domain or "reported website"
