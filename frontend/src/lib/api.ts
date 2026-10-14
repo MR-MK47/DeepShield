@@ -79,7 +79,10 @@ export async function loginOperator(email: string, password: string): Promise<Au
 
 export async function getCurrentOperator(): Promise<Operator> {
   const response = await fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() })
-  if (!response.ok) throw await responseError(response, 'Please sign in again.')
+  if (!response.ok) {
+    if (response.status === 401) window.localStorage.removeItem(TOKEN_KEY)
+    throw await responseError(response, 'Please sign in again.')
+  }
   const result = (await response.json()) as { user: Operator }
   return result.user
 }
