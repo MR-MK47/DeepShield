@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from PIL import Image, UnidentifiedImageError
@@ -102,6 +102,7 @@ class SearchRequest(BaseModel):
     vector: list[float] = Field(min_length=512, max_length=512)
     query_text: Optional[str] = Field(default=None, max_length=200)
     threshold: float = Field(default=0.30, ge=0.0, le=1.0)
+    save_history: bool = False
 
 
 class DossierRequest(BaseModel):
@@ -137,6 +138,18 @@ def _current_user(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=401, detail="Sign in to perform this action.")
     token = authorization.removeprefix("Bearer ").strip()
     user = auth_service.get_user(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
+    return user
+
+
+def _optional_user(authorization: str | None) -> dict | None:
+    """Resolve an optional bearer session, rejecting invalid supplied credentials."""
+    if not authorization:
+        return None
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header.")
+    user = auth_service.get_user(authorization.removeprefix("Bearer ").strip())
     if user is None:
         raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in again.")
     return user
@@ -247,15 +260,78 @@ async def analyze_image(file: UploadFile = File(...)) -> dict:
 
 
 @app.post("/api/search", response_model=list[CandidateMatch])
-async def search_matches(request: SearchRequest) -> list[dict]:
+async def search_matches(
+    request: SearchRequest,
+    authorization: str | None = Header(default=None),
+) -> list[dict]:
     if not all(__import__("math").isfinite(value) for value in request.vector):
         raise HTTPException(status_code=422, detail="Vector contains invalid numeric values.")
+    user = _optional_user(authorization)
+    if request.save_history and user is None:
+        raise HTTPException(status_code=401, detail="Sign in to save scan results to account history.")
     results = search_deepfake_candidates(
         query_vector=request.vector,
         query_text=request.query_text,
         threshold=request.threshold,
     )
-    return [CandidateMatch(**match).model_dump() for match in results]
+    candidates = [CandidateMatch(**match).model_dump() for match in results]
+    if request.save_history and user is not None:
+        auth_service.save_scan(user["id"], request.query_text or "", request.threshold, candidates)
+    return candidates
+
+
+@app.post("/api/scan")
+async def scan_image_and_search(
+    file: UploadFile = File(...),
+    query_text: str | None = Form(default=None, max_length=200),
+    threshold: float = Form(default=0.30, ge=0.0, le=1.0),
+    save_history: bool = Form(default=False),
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """Combined upload → analysis → candidate-search endpoint."""
+    user = _optional_user(authorization)
+    if save_history and user is None:
+        raise HTTPException(status_code=401, detail="Sign in to save scan results to account history.")
+    analysis = await analyze_image(file)
+    if not all(__import__("math").isfinite(value) for value in analysis["vector"]):
+        raise HTTPException(status_code=422, detail="Generated vector contains invalid numeric values.")
+    results = search_deepfake_candidates(
+        query_vector=analysis["vector"],
+        query_text=query_text,
+        threshold=threshold,
+    )
+    candidates = [CandidateMatch(**match).model_dump() for match in results]
+    if save_history and user is not None:
+        auth_service.save_scan(user["id"], query_text or "", threshold, candidates)
+    return {
+        "status": "success",
+        "analysis": {
+            "vector_kind": analysis["vector_kind"],
+            "hash": analysis["hash"],
+            "hash_kind": analysis["hash_kind"],
+        },
+        "matches": candidates,
+        "history_saved": bool(save_history and user is not None),
+    }
+
+
+@app.get("/api/matches")
+async def get_match_history(
+    limit: int = Query(default=25, ge=1, le=100),
+    user: dict = Depends(_current_user),
+) -> list[dict]:
+    """List the authenticated operator's explicitly saved candidate searches."""
+    return auth_service.list_scans(user["id"], limit=limit)
+
+
+@app.delete("/api/matches/{scan_id}")
+async def delete_match_history(
+    scan_id: str,
+    user: dict = Depends(_current_user),
+) -> dict:
+    if not auth_service.delete_scan(user["id"], scan_id):
+        raise HTTPException(status_code=404, detail="Scan history entry was not found.")
+    return {"status": "deleted", "scan_id": scan_id}
 
 
 @app.post("/api/dossier")
@@ -281,6 +357,7 @@ async def generate_cybercrime_dossier(
         raise HTTPException(status_code=500, detail="PDF dossier generation failed. Check server logs.") from exc
 
 
+@app.post("/api/legal-notice")
 @app.post("/api/takedown/preview")
 async def preview_takedown_email(
     request: TakedownRequest,
