@@ -19,7 +19,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Python 3.11 recommended.
 - Node.js 18.17+ (Node 20 LTS recommended) and npm.
 - Network access is needed for public image search. Real ArcFace analysis may download InsightFace model files on first use; without a usable model, the API can fall back to pHash.
-- The default NOTICE_EMAIL_MODE=mock exercises the preview/confirmation flow without sending email. Live sending requires NOTICE_EMAIL_MODE=resend, a valid Resend API key, a verified sender, and explicitly configured, independently verified platform recipient addresses. A provider acceptance does not guarantee platform action.
+- The default NOTICE_EMAIL_MODE=mock exercises the preview/confirmation flow without sending email. Preview requires authentication; actual sending can only consume a short-lived preview created by the same operator. Live sending requires NOTICE_EMAIL_MODE=resend, a valid Resend API key, a verified sender, and explicitly configured, independently verified platform recipient addresses. A provider acceptance does not guarantee platform action.
 
 ## Setup on Windows
 
@@ -134,7 +134,7 @@ Backend environment settings are documented in backend/.env.example; frontend se
 
 Configure CORS_ORIGINS to exactly match the frontend origins you use. Configure platform contact variables only after independently verifying the intended recipients. Do not treat old prototype recipient addresses as verified current grievance contacts.
 
-The login/session features do not currently include email-based password recovery, multi-factor authentication, a hosted user-management console, or role administration. Scan history is not persisted. These are not advertised as completed features.
+The login/session features do not currently include email-based password recovery, multi-factor authentication, a hosted user-management console, or role administration. Saved scan history is optional and off by default. When an operator explicitly checks “Save these results to my account history,” only candidate URLs, domains, scores, signatures, query text and timestamps are saved under that account; uploaded reference images and face vectors are not included. History is visible at /history and can be deleted per scan.
 
 The app uses search-provider results and remote image URLs that can be blocked, expired, rate-limited or irrelevant. This prototype does not independently classify synthetic media. Operator review is required before sending any notice or relying on a generated evidence report.
 
