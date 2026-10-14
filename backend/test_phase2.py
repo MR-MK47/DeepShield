@@ -177,3 +177,100 @@ def test_match_history_is_opt_in_private_and_deletable(monkeypatch):
     deleted = client.delete(f"/api/matches/{history[0]['scan_id']}", headers=headers)
     assert deleted.status_code == 200
     assert client.get("/api/matches", headers=headers).json() == []
+
+
+
+def test_contact_suggestions_requires_operator():
+    response = client.post(
+        "/api/takedown/contact-suggestions",
+        json={"target_url": "https://example.com/image.jpg"},
+    )
+    assert response.status_code == 401
+
+
+def test_contact_suggestions_returns_public_page_sources(monkeypatch):
+    expected = {
+        "domain": "example.com",
+        "contacts": [
+            {"email": "legal@example.com", "source_url": "https://example.com/contact"}
+        ],
+        "suggested_email": "legal@example.com",
+    }
+    monkeypatch.setattr(main, "discover_public_contacts", lambda url: expected)
+    response = client.post(
+        "/api/takedown/contact-suggestions",
+        headers=auth_headers(),
+        json={"target_url": "https://example.com/image.jpg"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["suggested_email"] == "legal@example.com"
+    assert response.json()["contacts"][0]["source_url"] == "https://example.com/contact"
+
+
+def test_notice_preview_accepts_custom_website_recipient_and_dispatches_in_mock(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "mock")
+    headers = auth_headers()
+    payload = {
+        "target_url": "https://example.com/photo.jpg",
+        "recipient": "legal@example.com",
+        "victim_name": "Test Complainant",
+        "hash_signature": "sha256:" + "c" * 64,
+    }
+    preview = client.post("/api/takedown/preview", headers=headers, json=payload)
+    assert preview.status_code == 200, preview.text
+    preview_body = preview.json()
+    assert preview_body["recipient"] == "legal@example.com"
+    assert preview_body["target_domain"] == "example.com"
+    assert "example.com" in preview_body["notice_text"]
+    assert preview_body["delivery_mode"] == "mock"
+
+    dispatched = client.post(
+        "/api/takedown/email",
+        headers=headers,
+        json={"preview_id": preview_body["preview_id"]},
+    )
+    assert dispatched.status_code == 200, dispatched.text
+    assert dispatched.json()["status"] == "simulated_not_sent"
+    assert dispatched.json()["recipient"] == "legal@example.com"
+
+
+def test_notice_preview_rejects_invalid_custom_recipient():
+    response = client.post(
+        "/api/takedown/preview",
+        headers=auth_headers(),
+        json={
+            "target_url": "https://example.com/photo.jpg",
+            "recipient": "not-an-email",
+            "victim_name": "Test Complainant",
+            "hash_signature": "sha256:" + "d" * 64,
+        },
+    )
+    assert response.status_code == 422
+
+
+
+def test_resend_service_submits_editable_external_recipient(monkeypatch):
+    from services import legal_email as legal_email_module
+    from services.legal_email import LegalEmail
+
+    captured = {}
+
+    def fake_send(params):
+        captured.update(params)
+        return {"id": "email_test_123"}
+
+    monkeypatch.setattr(legal_email_module.resend.Emails, "send", fake_send)
+    service = LegalEmail(api_key="re_test_key_for_unit_test", mode="resend")
+    result = service.send_notice(
+        to_email="copyright@example.org",
+        victim_name="Test Complainant",
+        platform_name="example.org",
+        content_url="https://example.org/content.jpg",
+        hash_signature="sha256:" + "e" * 64,
+        from_email="DeepShield Test <sender@example.test>",
+    )
+
+    assert captured["to"] == ["copyright@example.org"]
+    assert captured["subject"].endswith("example.org")
+    assert result["status"] == "accepted_by_provider"
+    assert result["id"] == "email_test_123"

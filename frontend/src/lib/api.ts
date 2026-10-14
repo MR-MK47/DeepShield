@@ -33,6 +33,11 @@ export interface ScanHistoryEntry {
   created_at: number
 }
 
+export interface ContactSuggestion {
+  email: string
+  source_url: string
+}
+
 interface AuthResponse {
   status: string
   token: string
@@ -122,18 +127,30 @@ export async function searchMatches(
   return (await response.json()) as Match[]
 }
 
+export async function discoverContactEmails(
+  targetUrl: string
+): Promise<{ domain: string; contacts: ContactSuggestion[]; suggested_email: string | null }> {
+  const response = await fetch(`${API_BASE}/api/takedown/contact-suggestions`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ target_url: targetUrl }),
+  })
+  if (!response.ok) throw await responseError(response, `Contact discovery failed (${response.status}).`)
+  return response.json()
+}
+
 export async function previewTakedown(
   targetUrl: string,
-  platform: string,
+  recipient: string,
   victimName: string,
   hashSignature: string
-): Promise<{ preview_id: string; recipient: string; delivery_mode: 'mock' | 'resend'; notice_text: string; notice_type: string; expires_in_seconds: number }> {
+): Promise<{ preview_id: string; recipient: string; target_domain: string; delivery_mode: 'mock' | 'resend'; notice_text: string; notice_type: string; expires_in_seconds: number }> {
   const response = await fetch(`${API_BASE}/api/takedown/preview`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       target_url: targetUrl,
-      platform,
+      recipient,
       victim_name: victimName,
       hash_signature: hashSignature,
     }),
