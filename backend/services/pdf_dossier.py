@@ -1,149 +1,127 @@
-"""
-PDF Dossier - Cybercrime Complaint Report Generator
-Uses ReportLab for PDF generation
-DPDP Act 2023 compliant: builds PDF in RAM buffer without persistent disk storage.
-"""
+"""PDF evidence summary generator.
 
+The report documents candidate findings. It does not certify that a candidate
+is a deepfake, establish that an offence occurred, or replace legal advice.
+"""
 from __future__ import annotations
 
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from html import escape
 from typing import Dict, List
 
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
 logger = logging.getLogger(__name__)
 
 
 class PDFDossier:
-    """
-    Cybercrime dossier generator.
-    Creates complaint-ready PDF documents for law enforcement submission.
-    """
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.styles = getSampleStyleSheet()
 
-    def generate_dossier_bytes(
-        self,
-        victim_name: str,
-        matches: List[Dict],
-    ) -> bytes:
-        """
-        Generate cybercrime complaint dossier PDF in RAM as bytes.
-        Ensures zero persistent disk storage per DPDP Act 2023.
-        """
+    def generate_dossier_bytes(self, victim_name: str, matches: List[Dict]) -> bytes:
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
+        document = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            rightMargin=72,
-            leftMargin=72,
-            topMargin=72,
-            bottomMargin=72,
+            rightMargin=0.55 * inch,
+            leftMargin=0.55 * inch,
+            topMargin=0.6 * inch,
+            bottomMargin=0.6 * inch,
+            title="DeepShield Candidate Evidence Report",
+            author="DeepShield",
         )
-
-        story = []
         title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=self.styles['Heading1'],
-            fontSize=18,
-            spaceAfter=20,
-            alignment=1,  # Center
+            "DeepShieldTitle", parent=self.styles["Title"], fontSize=17,
+            leading=21, alignment=TA_CENTER, spaceAfter=8,
+        )
+        subtitle_style = ParagraphStyle(
+            "DeepShieldSubtitle", parent=self.styles["Normal"], fontSize=8,
+            leading=11, alignment=TA_CENTER, textColor=colors.HexColor("#475569"),
+        )
+        cell_style = ParagraphStyle(
+            "EvidenceCell", parent=self.styles["BodyText"], fontSize=7,
+            leading=9, wordWrap="CJK",
+        )
+        small_style = ParagraphStyle(
+            "EvidenceSmall", parent=cell_style, fontSize=6.5, leading=8,
         )
 
-        # Title
-        story.append(Paragraph("CYBERCRIME COMPLAINT DOSSIER", title_style))
-        story.append(Paragraph("Rule 3(1)(b) IT Rules &amp; DPDP Act 2023 Compliance Package", ParagraphStyle('SubTitle', parent=self.styles['Normal'], fontSize=10, alignment=1, textColor='#64748b')))
-        story.append(Spacer(1, 16))
+        story = [
+            Paragraph("DEEPSHIELD — CANDIDATE EVIDENCE REPORT", title_style),
+            Paragraph("Automated similarity candidates for human review", subtitle_style),
+            Spacer(1, 16),
+            Paragraph(f"<b>Report generated (UTC):</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}", self.styles["Normal"]),
+            Paragraph(f"<b>Complainant name supplied by operator:</b> {escape(victim_name)}", self.styles["Normal"]),
+            Spacer(1, 12),
+            Paragraph("Candidate results", self.styles["Heading2"]),
+            Paragraph(
+                "A similarity score is not proof that an image is synthetic, unlawful, or an impersonation. "
+                "Verify each source and evidence item before using this report in a complaint.",
+                small_style,
+            ),
+            Spacer(1, 8),
+        ]
 
-        # Case Information
-        date_str = datetime.now().strftime("%B %d, %Y at %H:%M UTC")
-        case_info = f"""
-        <b>Date Generated:</b> {date_str}<br/>
-        <b>Complainant:</b> {victim_name}<br/>
-        <b>Case Type:</b> Unauthorized Synthetic Media / Deepfake Distribution<br/>
-        <b>Jurisdiction:</b> Cyber Crime Division / National Cyber Crime Reporting Portal
-        """
-        story.append(Paragraph(case_info, self.styles['Normal']))
-        story.append(Spacer(1, 20))
+        table_data = [[
+            Paragraph("<b>#</b>", cell_style),
+            Paragraph("<b>Source / URL</b>", cell_style),
+            Paragraph("<b>Similarity</b>", cell_style),
+            Paragraph("<b>Evidence signature</b>", cell_style),
+        ]]
+        for index, match in enumerate(matches, 1):
+            url = str(match.get("url") or "Not supplied")
+            domain = str(match.get("domain") or "Unknown domain")
+            score = float(match.get("similarity", 0.0))
+            signature = str(match.get("hash_signature") or "Not available")
+            table_data.append([
+                Paragraph(str(index), cell_style),
+                Paragraph(f"<b>{escape(domain)}</b><br/>{escape(url)}", small_style),
+                Paragraph(f"{score * 100:.1f}%", cell_style),
+                Paragraph(escape(signature), small_style),
+            ])
 
-        # Evidence Summary Header
-        story.append(Paragraph("<b>EVIDENCE SUMMARY</b>", self.styles['Heading2']))
-        story.append(Spacer(1, 8))
-
-        # Matches Table
-        if matches:
-            table_data = [["#", "Source URL / Domain", "Similarity", "Hash Signature"]]
-            for idx, match in enumerate(matches, 1):
-                url = match.get("url") or match.get("source_url") or "N/A"
-                domain = match.get("domain", "N/A")
-                sim = match.get("similarity") or match.get("similarity_score", 0.0)
-                h_sig = match.get("hash_signature") or "pdq:computed"
-
-                table_data.append([
-                    str(idx),
-                    f"{domain}\n{url[:35]}...",
-                    f"{sim * 100:.1f}%",
-                    str(h_sig)[:20] + "...",
-                ])
-
-            table = Table(table_data, colWidths=[0.4 * inch, 2.6 * inch, 1.0 * inch, 1.8 * inch])
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), '#0f172a'),
-                ('TEXTCOLOR', (0, 0), (-1, 0), '#ffffff'),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-                ('TOPPADDING', (0, 0), (-1, 0), 8),
-                ('GRID', (0, 0), (-1, -1), 0.5, '#cbd5e1'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ]))
-            story.append(table)
-        else:
-            story.append(Paragraph("No matches isolated for this dossier package.", self.styles['Normal']))
-
-        story.append(Spacer(1, 20))
-
-        # Legal Sections
-        story.append(Paragraph("<b>APPLICABLE LEGAL PROVISIONS &amp; MANDATES</b>", self.styles['Heading2']))
-        story.append(Spacer(1, 6))
-        legal_sections = """
-        &bull; <b>Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021:</b> Rule 3(1)(b) mandatory 36-hour takedown for synthetic intimate or impersonating media.<br/>
-        &bull; <b>Digital Personal Data Protection Act (DPDP), 2023:</b> Zero persistent biometric storage mandate upheld.<br/>
-        &bull; <b>Indian Penal Code (IPC) Sections 499 / 500:</b> Criminal defamation through synthetic impersonation.<br/>
-        &bull; <b>IT Act Section 66C &amp; 66E:</b> Identity theft and violation of privacy.
-        """
-        story.append(Paragraph(legal_sections, self.styles['Normal']))
-        story.append(Spacer(1, 30))
-
-        # Footer Signature Block
-        sig_block = """
-        <b>Verified &amp; Generated via DeepShield (Kavach-AI) Platform</b><br/>
-        <i>Automated Forensic Evidence &amp; Takedown System</i>
-        """
-        story.append(Paragraph(sig_block, ParagraphStyle('SigStyle', parent=self.styles['Normal'], fontSize=9, textColor='#475569')))
-
-        doc.build(story)
+        table = LongTable(
+            table_data,
+            colWidths=[0.3 * inch, 3.35 * inch, 0.75 * inch, 1.65 * inch],
+            repeatRows=1,
+            hAlign="LEFT",
+        )
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(table)
+        story += [
+            Spacer(1, 18),
+            Paragraph("Limitations and operator declaration", self.styles["Heading2"]),
+            Paragraph(
+                "This report records data returned by automated public-web image search and similarity analysis. "
+                "Remote images or URLs may change or become unavailable. The operator should verify the source, "
+                "capture independent evidence where lawful, and obtain appropriate advice before making legal claims. "
+                "DeepShield does not guarantee removal or provider acceptance of a complaint.",
+                self.styles["BodyText"],
+            ),
+        ]
+        document.build(story)
         buffer.seek(0)
         return buffer.read()
 
-    def generate_dossier(
-        self,
-        victim_name: str,
-        matches: List[Dict],
-        output_path: str = "dossier.pdf"
-    ) -> str:
-        """
-        Legacy method for file path output. Writes buffer bytes to disk.
-        """
+    def generate_dossier(self, victim_name: str, matches: List[Dict], output_path: str = "dossier.pdf") -> str:
+        """Legacy local-export helper; API routes use the in-memory byte method."""
         pdf_bytes = self.generate_dossier_bytes(victim_name, matches)
-        with open(output_path, "wb") as f:
-            f.write(pdf_bytes)
+        with open(output_path, "wb") as output:
+            output.write(pdf_bytes)
         return output_path
