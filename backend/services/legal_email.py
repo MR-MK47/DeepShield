@@ -39,25 +39,29 @@ class LegalEmail:
         return f"""REQUEST FOR REVIEW AND REMOVAL OF SUSPECTED UNAUTHORIZED MEDIA
 
 Date: {date_str}
-Platform: {platform_name}
-To: The platform's designated grievance or abuse team
+Website associated with the reported URL: {platform_name}
+To: Public contact address listed for this website
 
-Subject: Request to review suspected unauthorized synthetic or impersonating media
+Subject: Request to review reported content hosted on {platform_name}
 
-Dear Grievance Team,
+Dear Website Contact Team,
 
-I request a review of the content identified below. I believe it may involve
-unauthorized use of my image or identity. Please review the report under your
-applicable policies and the laws relevant to the facts and jurisdiction.
+I request a review of the content identified below. It may involve unauthorized
+use of the named individual's image or identity. Please review the facts under
+your applicable policies and the laws relevant to the circumstances.
 
-Complainant name supplied by operator: {victim_name}
+Name supplied by the operator: {victim_name}
 Reported content URL: {content_url}
-Evidence signature supplied by operator: {hash_signature}
+Evidence signature supplied by the operator: {hash_signature}
 
-Please acknowledge receipt and advise if further information is required.
-This report is generated with software assistance. It should be checked for
-accuracy and legal suitability by the complainant or a qualified adviser before
-sending. A report does not itself establish that the content is unlawful.
+If this inbox is not responsible for copyright, privacy, impersonation, or abuse
+reports, please forward this request to the appropriate department or advise the
+correct reporting channel. Please acknowledge receipt if possible.
+
+This report was prepared with software assistance. The named person or an
+authorized representative should verify the facts, the recipient, and the legal
+suitability before sending. A similarity result is not proof that content is
+synthetic or unlawful.
 
 Regards,
 {victim_name}
@@ -102,6 +106,10 @@ This is a report template, not legal advice or a guarantee of removal timing.
         sender = from_email or os.getenv(
             "RESEND_FROM_EMAIL", "DeepShield Legal <onboarding@resend.dev>"
         )
+        if "onboarding@resend.dev" in sender.lower():
+            raise RuntimeError(
+                "RESEND_FROM_EMAIL still uses Resend's test sender. Set it to an address on a domain verified in your Resend account to email external website contacts."
+            )
         try:
             params: resend.Emails.SendParams = {
                 "from": sender,
