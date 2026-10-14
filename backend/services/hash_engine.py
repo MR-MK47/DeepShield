@@ -6,8 +6,15 @@ cryptographic hash is never confused with a perceptual image hash.
 """
 from __future__ import annotations
 
+import logging
 from PIL import Image
-import imagehash
+
+logger = logging.getLogger(__name__)
+
+try:
+    import imagehash
+except ImportError:
+    imagehash = None
 
 
 class HashEngine:
@@ -38,8 +45,20 @@ class HashEngine:
         return f"pdq:{value:064x}"
 
     def compute_phash(self, image: Image.Image) -> str:
-        """Return a standard 64-bit DCT perceptual hash."""
-        return f"phash:{imagehash.phash(image.convert('RGB'), hash_size=8)}"
+        """Return a standard 64-bit DCT perceptual hash (or robust fallback if ImageHash is uninstalled)."""
+        if imagehash is not None:
+            return f"phash:{imagehash.phash(image.convert('RGB'), hash_size=8)}"
+
+        try:
+            import numpy as np
+            resized = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+            arr = np.asarray(resized)
+            diff = arr[:, :-1] > arr[:, 1:]
+            bit_string = "".join("1" if b else "0" for b in diff.flatten())
+            return f"phash:{int(bit_string, 2):016x}"
+        except Exception as exc:
+            logger.warning("Perceptual hash computation failed: %s", exc)
+            raise RuntimeError("pHash computation requires either imagehash or numpy/pillow.") from exc
 
     def compute_best_hash(self, image: Image.Image) -> str:
         """Prefer true PDQ when available, otherwise use portable pHash."""

@@ -162,8 +162,10 @@ def _phash_vector(img: Image.Image, hash_size: int = 8) -> List[float]:
     this equal-magnitude vector as "phash".
     """
     try:
-        import imagehash
-        bit_string = bin(int(str(imagehash.phash(img.convert("RGB"), hash_size=8)), 16))[2:].zfill(64)
+        from services.hash_engine import HashEngine
+        sig = HashEngine().compute_phash(img)
+        hex_val = sig.split(":", 1)[1]
+        bit_string = bin(int(hex_val, 16))[2:].zfill(64)
     except Exception as exc:
         logger.warning("pHash computation failed: %s", exc)
         return []
