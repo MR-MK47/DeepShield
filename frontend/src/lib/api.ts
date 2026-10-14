@@ -114,7 +114,7 @@ export async function previewTakedown(
   platform: string,
   victimName: string,
   hashSignature: string
-): Promise<{ recipient: string; notice_text: string; notice_type: string }> {
+): Promise<{ preview_id: string; recipient: string; notice_text: string; notice_type: string; expires_in_seconds: number }> {
   const response = await fetch(`${API_BASE}/api/takedown/preview`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -130,20 +130,12 @@ export async function previewTakedown(
 }
 
 export async function dispatchTakedown(
-  targetUrl: string,
-  platform: string,
-  victimName: string,
-  hashSignature: string
+  previewId: string
 ): Promise<{ status: string; notice_type: string; recipient: string; timestamp: string; dispatch_id?: string }> {
   const response = await fetch(`${API_BASE}/api/takedown/email`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({
-      target_url: targetUrl,
-      platform,
-      victim_name: victimName,
-      hash_signature: hashSignature,
-    }),
+    body: JSON.stringify({ preview_id: previewId }),
   })
   if (!response.ok) throw await responseError(response, `Takedown request failed (${response.status}).`)
   return response.json()
