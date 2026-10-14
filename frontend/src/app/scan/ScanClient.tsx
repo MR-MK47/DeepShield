@@ -5,7 +5,7 @@ import Link from 'next/link'
 import ImageUploader from '@/components/ImageUploader'
 import MatchGrid from '@/components/MatchGrid'
 import ActionPanel from '@/components/ActionPanel'
-import { type Match, type Operator, getCurrentOperator, logoutOperator } from '@/lib/api'
+import { type Match, type Operator, getCurrentOperator, logoutOperator, sendTestEmail } from '@/lib/api'
 
 export default function ScanClient() {
   const [matches, setMatches] = useState<Match[]>([])
@@ -16,6 +16,9 @@ export default function ScanClient() {
   const [lastThreshold, setLastThreshold] = useState<number>(0.30)
   const [operator, setOperator] = useState<Operator | null>(null)
   const [authMessage, setAuthMessage] = useState('')
+  const [testEmailLoading, setTestEmailLoading] = useState(false)
+  const [testEmailStatus, setTestEmailStatus] = useState('')
+  const [testEmailError, setTestEmailError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -30,6 +33,27 @@ export default function ScanClient() {
       setOperator(null)
     } catch (error) {
       setAuthMessage(error instanceof Error ? error.message : 'Could not sign out.')
+    }
+  }
+
+  const handleSendTestEmail = async () => {
+    if (!operator || testEmailLoading) return
+    const confirmed = window.confirm(
+      `Send one real SMTP test email to ${operator.email}? Make sure this is an inbox you control. The message will be sent through the SMTP account configured in backend/.env.`,
+    )
+    if (!confirmed) return
+    setTestEmailLoading(true)
+    setTestEmailStatus('')
+    setTestEmailError('')
+    try {
+      const result = await sendTestEmail()
+      setTestEmailStatus(
+        `SMTP server accepted a test email for ${result.recipient}. Message ID: ${result.message_id}. Check your inbox and spam/junk folders; server acceptance is not proof of final inbox delivery.`,
+      )
+    } catch (error) {
+      setTestEmailError(error instanceof Error ? error.message : 'Test email could not be submitted.')
+    } finally {
+      setTestEmailLoading(false)
     }
   }
 
@@ -95,6 +119,14 @@ export default function ScanClient() {
               <>
                 <span className="hidden sm:inline">Signed in: {operator.name}</span>
                 <Link href="/history" className="underline hover:text-white">History</Link>
+                <button
+                  type="button"
+                  onClick={handleSendTestEmail}
+                  disabled={testEmailLoading}
+                  className="border border-slate-600 px-2.5 py-1.5 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {testEmailLoading ? 'Sending test…' : 'Send test email'}
+                </button>
                 <button type="button" onClick={handleLogout} className="underline hover:text-white">Sign out</button>
               </>
             ) : (
@@ -105,6 +137,8 @@ export default function ScanClient() {
       </header>
 
       {authMessage && <p role="alert" className="bg-red-950/60 px-6 py-2 text-xs text-red-200">{authMessage}</p>}
+      {testEmailStatus && <p role="status" className="border-b border-emerald-900 bg-emerald-950/60 px-6 py-3 text-xs text-emerald-200 break-words">{testEmailStatus}</p>}
+      {testEmailError && <p role="alert" className="border-b border-red-900 bg-red-950/60 px-6 py-3 text-xs text-red-200 break-words">{testEmailError}</p>}
 
       {/* Main Body */}
       <main className="max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-8">
