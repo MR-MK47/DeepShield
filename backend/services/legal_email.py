@@ -1,8 +1,9 @@
-"""Operator-reviewed takedown request email service.
+"""Operator-reviewed notices via Resend or authenticated mailbox SMTP.
 
-Local test mode is the safe default and never sends email. Live delivery requires
-explicit NOTICE_EMAIL_MODE=resend plus a valid Resend API key and verified
-recipient configuration. Provider acceptance is not proof of removal.
+Local test mode is the safe default and never sends email. Explicit SMTP mode
+supports a real inbox test and operator-reviewed notice delivery using settings
+stored in the local environment. Provider/server acceptance is not proof of
+final inbox placement or content removal.
 """
 from __future__ import annotations
 
