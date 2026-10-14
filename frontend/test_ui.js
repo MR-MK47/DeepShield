@@ -23,6 +23,13 @@ const checks = [
     const api = read('src/lib/api.ts')
     return panel.includes('id="notice-recipient"') && panel.includes('createPortal') && panel.includes('Search public contacts again') && api.includes('discoverContactEmails') && !panel.includes('<option value="Meta">')
   }],
+  ['real SMTP test email is available to signed-in operators', () => {
+    const scan = read('src/app/scan/ScanClient.tsx')
+    const api = read('src/lib/api.ts')
+    const backend = read('../backend/main.py')
+    const service = read('../backend/services/legal_email.py')
+    return scan.includes('Send test email') && scan.includes('sendTestEmail') && api.includes('/api/email/test') && backend.includes('/api/email/test') && service.includes('SMTP_SSL') && service.includes('starttls')
+  }],
   ['notice and dossier API calls attach operator authorization', () => {
     const api = read('src/lib/api.ts')
     return api.includes('authHeaders') && api.includes('/api/takedown/email') && api.includes('/api/dossier')
