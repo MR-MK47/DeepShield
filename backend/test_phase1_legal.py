@@ -255,3 +255,94 @@ def test_send_notice_rejects_resend_test_sender_for_external_contacts():
             hash_signature="sha256:" + "f" * 64,
             from_email="DeepShield Legal <onboarding@resend.dev>",
         )
+
+
+
+def test_smtp_test_email_submits_a_real_message_over_starttls(monkeypatch):
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_USERNAME", "operator@example.test")
+    monkeypatch.setenv("SMTP_PASSWORD", "app pass phrase")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "")
+
+    service = LegalEmail(api_key="", mode="smtp")
+    with patch("services.legal_email.smtplib.SMTP") as smtp_factory:
+        smtp = smtp_factory.return_value.__enter__.return_value
+        result = service.send_test_email("operator@example.test", "Test Operator")
+
+    assert result["status"] == "accepted_by_smtp"
+    assert result["recipient"] == "operator@example.test"
+    assert result["id"].startswith("<")
+    smtp_factory.assert_called_once_with("smtp.example.test", 587, timeout=20)
+    smtp.starttls.assert_called_once()
+    smtp.login.assert_called_once_with("operator@example.test", "apppassphrase")
+    smtp.send_message.assert_called_once()
+    sent_message = smtp.send_message.call_args.args[0]
+    assert sent_message["To"] == "operator@example.test"
+    assert sent_message["From"] == "operator@example.test"
+    assert "SMTP delivery test" in sent_message["Subject"]
+    assert "delivery path is working" in sent_message.get_content()
+
+
+def test_smtp_reviewed_notice_uses_same_smtp_transport(monkeypatch):
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("SMTP_PORT", "465")
+    monkeypatch.setenv("SMTP_USERNAME", "sender@example.test")
+    monkeypatch.setenv("SMTP_PASSWORD", "app-password")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "DeepShield <sender@example.test>")
+
+    service = LegalEmail(api_key="", mode="smtp")
+    with patch("services.legal_email.smtplib.SMTP_SSL") as smtp_factory:
+        smtp = smtp_factory.return_value.__enter__.return_value
+        result = service.send_notice(
+            to_email="site-contact@example.org",
+            victim_name="Test Operator",
+            platform_name="example.org",
+            content_url="https://example.org/reported.jpg",
+            hash_signature="sha256:" + "a" * 64,
+        )
+
+    assert result["status"] == "accepted_by_smtp"
+    assert result["recipient"] == "site-contact@example.org"
+    smtp.login.assert_called_once_with("sender@example.test", "app-password")
+    sent_message = smtp.send_message.call_args.args[0]
+    assert sent_message["To"] == "site-contact@example.org"
+    assert "REQUEST FOR REVIEW AND REMOVAL" in sent_message.get_content()
+
+
+def test_smtp_test_endpoint_requires_authentication():
+    response = client.post("/api/email/test")
+    assert response.status_code == 401
+
+
+def test_smtp_test_endpoint_requires_explicit_smtp_mode(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "mock")
+    response = client.post("/api/email/test", headers=auth_headers())
+    assert response.status_code == 409
+    assert "NOTICE_EMAIL_MODE=smtp" in response.json()["detail"]
+
+
+def test_smtp_test_endpoint_sends_only_to_signed_in_operator_email(monkeypatch):
+    monkeypatch.setattr(main.legal_email_service, "mode", "smtp")
+    captured = {}
+
+    def fake_test_send(to_email, operator_name):
+        captured.update({"to_email": to_email, "operator_name": operator_name})
+        return {
+            "status": "accepted_by_smtp",
+            "id": "<smtp-test-id@example.test>",
+            "recipient": to_email,
+            "timestamp": "2026-10-15T00:00:00+00:00",
+        }
+
+    monkeypatch.setattr(main.legal_email_service, "send_test_email", fake_test_send)
+    headers = auth_headers()
+    response = client.post("/api/email/test", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "accepted_by_smtp"
+    assert body["message_id"] == "<smtp-test-id@example.test>"
+    assert body["recipient"].startswith("operator-")
+    assert body["recipient"].endswith("@example.test")
+    assert captured["to_email"] == body["recipient"]
+    assert captured["operator_name"] == "Test Operator"
