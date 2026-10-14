@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import ImageUploader from '@/components/ImageUploader'
 import MatchGrid from '@/components/MatchGrid'
 import ActionPanel from '@/components/ActionPanel'
-import { type Match } from '@/lib/api'
+import { type Match, type Operator, getCurrentOperator, logoutOperator } from '@/lib/api'
 
 export default function ScanClient() {
   const [matches, setMatches] = useState<Match[]>([])
@@ -14,6 +14,24 @@ export default function ScanClient() {
   const [hasScanned, setHasScanned] = useState(false)
   const [lastQuery, setLastQuery] = useState<string>('')
   const [lastThreshold, setLastThreshold] = useState<number>(0.30)
+  const [operator, setOperator] = useState<Operator | null>(null)
+  const [authMessage, setAuthMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getCurrentOperator().then(user => { if (active) setOperator(user) }).catch(() => { if (active) setOperator(null) })
+    return () => { active = false }
+  }, [])
+
+  const handleLogout = async () => {
+    setAuthMessage('')
+    try {
+      await logoutOperator()
+      setOperator(null)
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : 'Could not sign out.')
+    }
+  }
 
   const handleScanStart = useCallback(() => {
     setHasScanned(false)
@@ -72,13 +90,20 @@ export default function ScanClient() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-            <Link href="/login" className="hover:text-white underline">Operator sign in</Link>
-            <span className="text-slate-800">|</span>
-            <span>Candidate search</span>
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            {operator ? (
+              <>
+                <span className="hidden sm:inline">Signed in: {operator.name}</span>
+                <button type="button" onClick={handleLogout} className="underline hover:text-white">Sign out</button>
+              </>
+            ) : (
+              <Link href="/login" className="underline hover:text-white">Operator sign in</Link>
+            )}
           </div>
         </div>
       </header>
+
+      {authMessage && <p role="alert" className="bg-red-950/60 px-6 py-2 text-xs text-red-200">{authMessage}</p>}
 
       {/* Main Body */}
       <main className="max-w-7xl w-full mx-auto px-6 py-8 flex-1 space-y-8">
