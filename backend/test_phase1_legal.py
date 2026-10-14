@@ -43,7 +43,7 @@ def test_generate_legal_notice_is_a_reviewable_request():
     assert "Jane Doe" in notice
     assert "https://example.com/candidate.jpg" in notice
     assert "sha256:" in notice
-    assert "does not itself establish" in notice
+    assert "not proof that content is" in notice
     assert "within 36 hours as mandated" not in notice
     assert "Section 66A" not in notice
 
