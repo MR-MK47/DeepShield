@@ -24,6 +24,15 @@ export interface Operator {
   created_at: number
 }
 
+export interface ScanHistoryEntry {
+  scan_id: string
+  query_text: string
+  threshold: number
+  matches: Match[]
+  match_count: number
+  created_at: number
+}
+
 interface AuthResponse {
   status: string
   token: string
@@ -98,12 +107,13 @@ export async function analyzeImage(file: File): Promise<AnalyzeResponse> {
 export async function searchMatches(
   vector: number[],
   queryText?: string,
-  threshold: number = 0.30
+  threshold: number = 0.30,
+  saveHistory = false
 ): Promise<Match[]> {
   const response = await fetch(`${API_BASE}/api/search`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vector, threshold, query_text: queryText }),
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ vector, threshold, query_text: queryText, save_history: saveHistory }),
   })
   if (!response.ok) throw await responseError(response, `Search failed (${response.status}).`)
   return (await response.json()) as Match[]
@@ -127,6 +137,23 @@ export async function previewTakedown(
   })
   if (!response.ok) throw await responseError(response, `Notice preview failed (${response.status}).`)
   return response.json()
+}
+
+
+export async function fetchScanHistory(limit = 25): Promise<ScanHistoryEntry[]> {
+  const response = await fetch(`${API_BASE}/api/matches?limit=${encodeURIComponent(String(limit))}`, {
+    headers: authHeaders(),
+  })
+  if (!response.ok) throw await responseError(response, `Could not load scan history (${response.status}).`)
+  return (await response.json()) as ScanHistoryEntry[]
+}
+
+export async function deleteScanHistory(scanId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/matches/${encodeURIComponent(scanId)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  })
+  if (!response.ok) throw await responseError(response, `Could not delete scan history (${response.status}).`)
 }
 
 export async function dispatchTakedown(
