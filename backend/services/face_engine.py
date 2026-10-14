@@ -52,8 +52,12 @@ def extract_face_vector_with_kind(image_bytes: bytes) -> tuple[List[float], str]
         try:
             faces = _face_app.get(arr)
             if faces:
-                # Take the largest face (by bounding-box area).
-                largest = max(faces, key=lambda f: f.bbox[2] * f.bbox[3])
+                # Take the face with the largest actual bounding-box area.
+                largest = max(
+                    faces,
+                    key=lambda face: max(0.0, face.bbox[2] - face.bbox[0])
+                    * max(0.0, face.bbox[3] - face.bbox[1]),
+                )
                 embedding = largest.embedding  # 512-D float32, already L2-normalised
                 logger.info("Used ArcFace embedding")
                 return embedding.tolist(), "arcface"
@@ -116,46 +120,22 @@ def compute_similarity(vec1: List[float], vec2: List[float]) -> float:
 
 # ─── Perceptual-hash fallback ────────────────────────────────────────────────
 
-def _phash_vector(img: Image.Image, hash_size: int = 32) -> List[float]:
+def _phash_vector(img: Image.Image, hash_size: int = 8) -> List[float]:
+    """Represent a standard 64-bit pHash as a 512-D normalized fallback.
+
+    Each of the 64 bits is repeated eight times only to retain the historical
+    vector transport shape. It is not a face embedding; vector_kind() marks
+    this equal-magnitude vector as "phash".
     """
-    Compute a perceptual hash (pHash) of an image and return it as a
-    512-D normalised float vector.  Not a biometric embedding — used as a
-    graceful fallback when no face is present.
-    """
-    # Resize to hash_size+1 × hash_size to compute DCT
-    size = hash_size + 1
-    img_small = img.resize((size, size), Image.LANCZOS).convert("L")
-    pixels = np.array(img_small, dtype=np.float64)
-
-    # Compute 1-D DCT along rows, then columns
-    # (simple DCT-II approximation via numpy)
-    N = pixels.shape[1]
-    dct_row = np.zeros_like(pixels)
-    for x in range(N):
-        for u in range(hash_size):
-            s = 0.0
-            for v in range(N):
-                s += pixels[u, v] * np.cos(np.pi * (2 * v + 1) * u / (2 * N))
-            dct_row[u, x] = s
-
-    dct_result = np.zeros_like(dct_row)
-    for y in range(dct_row.shape[0]):
-        for v in range(hash_size):
-            s = 0.0
-            for u in range(dct_row.shape[1]):
-                s += dct_row[y, u] * np.cos(np.pi * (2 * u + 1) * v / (2 * N))
-            dct_result[y, v] = s
-
-    # Take top-left hash_size × hash_size block = 1024 coefficients
-    block = dct_result[:hash_size, :hash_size]
-    median = np.median(block)
-    bits = (block > median).astype(np.uint8).flatten()
-    # Pad or trim to 512
-    bits = bits[:512] if len(bits) > 512 else np.pad(bits, (0, 512 - len(bits)))
-    # Normalise to [-1, 1] range for similarity comparison
-    vec = (bits.astype(np.float64) * 2.0 - 1.0).tolist()
-    # L2-normalise
-    norm = np.linalg.norm(vec)
-    if norm > 0:
-        vec = [v / norm for v in vec]
-    return vec
+    try:
+        import imagehash
+        bit_string = bin(int(str(imagehash.phash(img.convert("RGB"), hash_size=8)), 16))[2:].zfill(64)
+    except Exception as exc:
+        logger.warning("pHash computation failed: %s", exc)
+        return []
+    bits = np.fromiter((1.0 if bit == "1" else -1.0 for bit in bit_string), dtype=np.float64)
+    vec = np.repeat(bits, 8)
+    norm = float(np.linalg.norm(vec))
+    if norm == 0:
+        return []
+    return (vec / norm).tolist()
