@@ -17,7 +17,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 MAX_HTML_BYTES = 750_000
-MAX_PAGES = 7
+MAX_PAGES = 9
 EMAIL_RE = re.compile(
     r"(?<![A-Z0-9._%+-])[A-Z0-9._%+-]{1,64}@[A-Z0-9.-]{1,190}\.[A-Z]{2,24}(?![A-Z0-9.-])",
     re.IGNORECASE,
