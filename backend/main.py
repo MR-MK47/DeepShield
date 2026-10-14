@@ -9,6 +9,9 @@ import io
 import logging
 import os
 import re
+import secrets
+import threading
+import time
 
 from dotenv import load_dotenv
 
@@ -113,8 +116,19 @@ class TakedownRequest(BaseModel):
     hash_signature: str = Field(min_length=1, max_length=200)
 
 
+class TakedownDispatchRequest(BaseModel):
+    preview_id: str = Field(min_length=40, max_length=128)
+
+
 class HealthResponse(BaseModel):
     status: str
+
+
+# A notice can only be sent using a short-lived preview issued to the same
+# operator. Reviews live in memory and expire after 15 minutes.
+_PENDING_NOTICE_REVIEWS: dict[str, dict] = {}
+_PENDING_NOTICE_LOCK = threading.Lock()
+_NOTICE_REVIEW_TTL_SECONDS = 15 * 60
 
 
 def _current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -287,47 +301,82 @@ async def preview_takedown_email(
         content_url=request.target_url,
         hash_signature=request.hash_signature,
     )
+    now = time.time()
+    preview_id = secrets.token_urlsafe(32)
+    with _PENDING_NOTICE_LOCK:
+        for key in list(_PENDING_NOTICE_REVIEWS):
+            if _PENDING_NOTICE_REVIEWS[key]["expires_at"] <= now:
+                _PENDING_NOTICE_REVIEWS.pop(key, None)
+        _PENDING_NOTICE_REVIEWS[preview_id] = {
+            "user_id": user["id"],
+            "expires_at": now + _NOTICE_REVIEW_TTL_SECONDS,
+            "dispatching": False,
+            "target_url": request.target_url,
+            "platform": request.platform,
+            "victim_name": request.victim_name,
+            "hash_signature": request.hash_signature,
+            "recipient": recipient,
+            "notice_text": notice,
+        }
     return {
+        "preview_id": preview_id,
         "recipient": recipient,
         "notice_type": "Operator-reviewed takedown request",
         "notice_text": notice,
-        "prepared_for_operator_id": user["id"],
+        "expires_in_seconds": _NOTICE_REVIEW_TTL_SECONDS,
     }
 
 
 @app.post("/api/takedown/email")
 async def dispatch_takedown_email(
-    request: TakedownRequest,
+    request: TakedownDispatchRequest,
     user: dict = Depends(_current_user),
 ) -> dict:
-    """Dispatch a notice after a separate operator review/confirmation step in the UI."""
-    _validate_http_url(request.target_url)
-    _validate_evidence_signature(request.hash_signature)
-    recipient = _PLATFORM_RECIPIENTS[request.platform]
-    if not recipient:
-        raise HTTPException(
-            status_code=503,
-            detail=f"No verified recipient is configured for {request.platform}. Set the platform contact in backend/.env after checking the official contact details.",
-        )
+    """Send only a valid, unexpired preview issued to this same operator."""
+    now = time.time()
+    with _PENDING_NOTICE_LOCK:
+        pending = _PENDING_NOTICE_REVIEWS.get(request.preview_id)
+        if pending is None or pending["expires_at"] <= now:
+            _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
+            raise HTTPException(
+                status_code=409,
+                detail="Notice preview is missing or expired. Review the notice again before sending.",
+            )
+        if pending["user_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="This notice preview belongs to another operator.")
+        if pending["dispatching"]:
+            raise HTTPException(status_code=409, detail="This notice is already being submitted.")
+        pending["dispatching"] = True
+        action = dict(pending)
+
     try:
         dispatch_result = legal_email_service.send_notice(
-            to_email=recipient,
-            victim_name=request.victim_name,
-            platform_name=request.platform,
-            content_url=request.target_url,
-            hash_signature=request.hash_signature,
+            to_email=action["recipient"],
+            victim_name=action["victim_name"],
+            platform_name=action["platform"],
+            content_url=action["target_url"],
+            hash_signature=action["hash_signature"],
         )
     except RuntimeError as exc:
-        logger.warning("Notice delivery failed for operator_id=%s platform=%s", user["id"], request.platform)
+        with _PENDING_NOTICE_LOCK:
+            if request.preview_id in _PENDING_NOTICE_REVIEWS:
+                _PENDING_NOTICE_REVIEWS[request.preview_id]["dispatching"] = False
+        logger.warning("Notice delivery failed for operator_id=%s platform=%s", user["id"], action["platform"])
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
+        with _PENDING_NOTICE_LOCK:
+            if request.preview_id in _PENDING_NOTICE_REVIEWS:
+                _PENDING_NOTICE_REVIEWS[request.preview_id]["dispatching"] = False
         logger.exception("Unexpected notice dispatch failure")
         raise HTTPException(status_code=502, detail="Email provider failed to dispatch the notice.") from exc
+
+    with _PENDING_NOTICE_LOCK:
+        _PENDING_NOTICE_REVIEWS.pop(request.preview_id, None)
 
     return {
         "status": dispatch_result["status"],
         "notice_type": "Operator-reviewed takedown request",
-        "recipient": recipient,
+        "recipient": action["recipient"],
         "timestamp": dispatch_result["timestamp"],
         "dispatch_id": dispatch_result.get("id"),
     }
