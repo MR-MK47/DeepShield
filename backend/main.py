@@ -290,7 +290,10 @@ async def preview_takedown_email(
     _validate_http_url(request.target_url)
     _validate_evidence_signature(request.hash_signature)
     recipient = _PLATFORM_RECIPIENTS[request.platform]
-    if not recipient:
+    if legal_email_service.mode == "mock":
+        # This label is deliberately not an email address. Mock mode never sends.
+        recipient = f"LOCAL TEST MODE — no email will be sent ({request.platform})"
+    elif not recipient:
         raise HTTPException(
             status_code=503,
             detail=f"No verified recipient is configured for {request.platform}. Set the platform contact in backend/.env after checking the official contact details.",
@@ -321,6 +324,7 @@ async def preview_takedown_email(
     return {
         "preview_id": preview_id,
         "recipient": recipient,
+        "delivery_mode": legal_email_service.mode,
         "notice_type": "Operator-reviewed takedown request",
         "notice_text": notice,
         "expires_in_seconds": _NOTICE_REVIEW_TTL_SECONDS,
