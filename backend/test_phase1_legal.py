@@ -255,3 +255,27 @@ def test_send_notice_rejects_resend_test_sender_for_external_contacts():
             hash_signature="sha256:" + "f" * 64,
             from_email="DeepShield Legal <onboarding@resend.dev>",
         )
+
+
+def test_auto_mode_enables_resend_when_api_key_is_present(monkeypatch):
+    monkeypatch.setenv("NOTICE_EMAIL_MODE", "auto")
+    service = LegalEmail(api_key="re_live_configured_key")
+    assert service.mode == "resend"
+
+
+def test_auto_mode_falls_back_to_no_send_without_api_key(monkeypatch):
+    monkeypatch.setenv("NOTICE_EMAIL_MODE", "auto")
+    service = LegalEmail(api_key="")
+    assert service.mode == "mock"
+
+
+def test_explicit_mock_mode_overrides_an_available_api_key(monkeypatch):
+    monkeypatch.setenv("NOTICE_EMAIL_MODE", "auto")
+    service = LegalEmail(api_key="re_live_configured_key", mode="mock")
+    assert service.mode == "mock"
+
+
+def test_environment_mock_mode_is_a_no_send_override(monkeypatch):
+    monkeypatch.setenv("NOTICE_EMAIL_MODE", "mock")
+    service = LegalEmail(api_key="re_live_configured_key")
+    assert service.mode == "mock"

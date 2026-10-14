@@ -19,7 +19,7 @@ It is not a deepfake classifier, legal adviser, or guarantee of takedown. Simila
 - Python 3.11 recommended.
 - Node.js 18.17+ (Node 20 LTS recommended) and npm.
 - Network access is needed for public image search. Real ArcFace analysis may download InsightFace model files on first use; without a usable model, the API can fall back to pHash.
-- The default NOTICE_EMAIL_MODE=mock exercises preview and confirmation without sending email. The app can search public contact pages on the matched website and shows the source page for discovered email addresses; operators can edit the address manually. Preview and dispatch require authentication, and dispatch consumes a short-lived preview created by the same operator. Live sending requires NOTICE_EMAIL_MODE=resend, RESEND_API_KEY, and a sender address on a domain verified in Resend. A provider acceptance is not proof of delivery or removal.
+- NOTICE_EMAIL_MODE=auto uses Resend when RESEND_API_KEY is configured and safely falls back to local no-send mode when the key is absent. Use NOTICE_EMAIL_MODE=mock to force no-send testing or resend to require live delivery. The app searches public contact pages on the matched website and displays source links; operators can edit the address manually. Preview and dispatch require authentication, and dispatch consumes a short-lived preview created by the same operator. Live delivery also requires a sender address on a domain verified in Resend. Provider acceptance is not proof of delivery or removal.
 
 ## Setup on Windows
 
@@ -37,7 +37,7 @@ copy .env.example .env
 uvicorn main:app --reload --port 8000
 ~~~
 
-If you already have a local .env, keep it; do not overwrite it. Add new settings from .env.example only when missing. Local testing uses NOTICE_EMAIL_MODE=mock and will clearly say that no email was sent. To enable real external delivery, set NOTICE_EMAIL_MODE=resend, configure RESEND_API_KEY, and set RESEND_FROM_EMAIL to an address on a domain verified in your Resend account (the sample onboarding@resend.dev sender is for Resend testing and may not deliver to arbitrary external recipients). On confirmation, the backend submits the reviewed notice to Resend using the editable recipient. Contact discovery only suggests public email addresses; verify the right department and exact recipient before sending. Never commit your real .env.
+If you already have a local .env, keep it; do not overwrite it. Since an existing .env is not updated by git pull, change its NOTICE_EMAIL_MODE setting from the old mock default to auto (or resend) to enable Resend with your existing RESEND_API_KEY. With auto, a configured key selects Resend; if no key is configured, the app stays in no-send test mode. To force local testing, set NOTICE_EMAIL_MODE=mock. Set RESEND_FROM_EMAIL to an address on a domain verified in your Resend account; the sample onboarding@resend.dev sender is for Resend testing and is blocked for sending notices to arbitrary external website contacts. After you review and confirm a notice, the backend sends it to Resend using the recipient displayed in the preview. Contact discovery only suggests public email addresses; verify the correct department and recipient before sending. Never commit your real .env.
 
 For a quick offline-safe smoke test without downloading a face model, set DEEPSHIELD_DISABLE_FACE_MODEL=1 in the terminal before starting the backend. This uses pHash fallback and is **not** a test of ArcFace accuracy.
 
@@ -111,7 +111,7 @@ npm run lint
 npm run build
 ~~~
 
-The default local test mode never sends real emails. Automated tests also mock the provider and do not send external messages. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
+Automated tests always mock the Resend provider and never send external messages. To force no-send behavior locally even when an API key is configured, set NOTICE_EMAIL_MODE=mock. With NOTICE_EMAIL_MODE=auto, a configured RESEND_API_KEY selects Resend, and a missing key falls back to no-send test mode. Search accuracy and ArcFace identity-matching performance require a separate labelled real-image evaluation; passing the unit suite does not prove those metrics.
 
 ## API endpoints
 
