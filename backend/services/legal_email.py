@@ -1,8 +1,8 @@
 """Operator-reviewed takedown request email service.
 
-NOTICE_EMAIL_MODE=auto uses Resend when an API key is configured, otherwise it
-uses local no-send test mode. Operators can force either mode explicitly.
-Provider acceptance is not proof of delivery or removal.
+Local test mode is the safe default and never sends email. Live delivery requires
+explicit NOTICE_EMAIL_MODE=resend plus a valid Resend API key and verified
+recipient configuration. Provider acceptance is not proof of removal.
 """
 from __future__ import annotations
 
@@ -21,24 +21,11 @@ class LegalEmail:
 
     def __init__(self, api_key: Optional[str] = None, mode: Optional[str] = None):
         self.api_key = (api_key if api_key is not None else os.getenv("RESEND_API_KEY", "")).strip()
-        requested_mode = (mode if mode is not None else os.getenv("NOTICE_EMAIL_MODE", "auto")).strip().lower()
-
-        if requested_mode not in {"auto", "mock", "resend"}:
-            raise ValueError("NOTICE_EMAIL_MODE must be 'auto', 'mock', or 'resend'.")
-
-        if requested_mode == "auto":
-            has_usable_key = bool(
-                self.api_key
-                and not self.api_key.startswith("re_xxx")
-                and self.api_key != "test_key"
-            )
-            self.mode = "resend" if has_usable_key else "mock"
-        else:
-            self.mode = requested_mode
-
+        self.mode = (mode or os.getenv("NOTICE_EMAIL_MODE") or "mock").strip().lower()
+        if self.mode not in {"mock", "resend"}:
+            raise ValueError("NOTICE_EMAIL_MODE must be either 'mock' or 'resend'.")
         if self.api_key:
             resend.api_key = self.api_key
-        logger.info("Legal notice email mode initialized: %s", self.mode)
 
     def generate_legal_notice(
         self,
