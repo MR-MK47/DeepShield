@@ -66,9 +66,10 @@ def test_send_notice_with_mocked_resend():
         result = service.send_notice(
             to_email="abuse@example.test",
             victim_name="John Doe",
-            platform_name="Google",
+            platform_name="example.com",
             content_url="https://example.com/candidate.jpg",
             hash_signature="sha256:" + "b" * 64,
+            from_email="DeepShield Test <sender@example.test>",
         )
     assert result["status"] == "accepted_by_provider"
     assert result["id"] == "resend_email_id_999"
@@ -155,7 +156,7 @@ def test_takedown_endpoint_uses_only_reviewed_preview(monkeypatch):
     send.assert_called_once_with(
         to_email="legal@example.test",
         victim_name="Test User",
-        platform_name="Meta",
+        platform_name="example.com",
         content_url="https://example.com/candidate.jpg",
         hash_signature="sha256:" + "d" * 64,
     )
