@@ -7,6 +7,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
 const exists = relative => fs.existsSync(path.join(root, relative))
 const checks = [
   ['scan route exists', () => exists('src/app/scan/page.tsx') && exists('src/app/scan/ScanClient.tsx')],
+  ['scan history route exists', () => exists('src/app/history/page.tsx') && exists('src/app/history/HistoryClient.tsx')],
   ['login and signup routes exist', () => exists('src/app/login/LoginClient.tsx') && exists('src/app/signup/SignupClient.tsx')],
   ['authentication API functions are wired', () => {
     const api = read('src/lib/api.ts')
@@ -26,9 +27,14 @@ const checks = [
     const signup = read('src/app/signup/SignupClient.tsx')
     return !login.includes('Authentication stub') && !signup.includes('Account creation stub')
   }],
-  ['backend auth endpoints exist', () => {
+  ['history is opt-in and deletable', () => {
+    const uploader = read('src/components/ImageUploader.tsx')
+    const api = read('src/lib/api.ts')
+    return uploader.includes('Save these results to my account history') && api.includes('fetchScanHistory') && api.includes('deleteScanHistory')
+  }],
+  ['backend auth and scan endpoints exist', () => {
     const backend = read('../backend/main.py')
-    return backend.includes('/api/auth/register') && backend.includes('/api/auth/login') && backend.includes('/api/auth/logout')
+    return backend.includes('/api/auth/register') && backend.includes('/api/auth/login') && backend.includes('/api/auth/logout') && backend.includes('/api/scan') && backend.includes('/api/matches')
   }],
 ]
 
