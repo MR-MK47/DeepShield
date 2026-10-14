@@ -22,6 +22,10 @@ export default function ScanClient() {
     setScanLoading(true)
   }, [])
 
+  const handleScanEnd = useCallback(() => {
+    setScanLoading(false)
+  }, [])
+
   const handleMatchesFound = useCallback((found: Match[], queryText: string, threshold: number) => {
     setMatches(found)
     setSelectedIds(new Set())
@@ -90,7 +94,7 @@ export default function ScanClient() {
 
         {/* Upload Control Station */}
         <section className="bg-slate-900/60 border border-slate-800 rounded-xl p-6 shadow-sm">
-          <ImageUploader onMatchesFound={handleMatchesFound} onScanStart={handleScanStart} />
+          <ImageUploader onMatchesFound={handleMatchesFound} onScanStart={handleScanStart} onScanEnd={handleScanEnd} />
         </section>
 
         {/* Match Candidates & Actions */}
