@@ -2,18 +2,25 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { type Match, dispatchTakedown, generateDossier } from '@/lib/api'
+import { type Match, dispatchTakedown, generateDossier, previewTakedown } from '@/lib/api'
 
 interface ActionPanelProps {
   selectedMatches: Match[]
   loading: boolean
 }
 type Platform = 'Meta' | 'Google' | 'X' | 'TikTok'
+interface NoticePreview {
+  recipient: string
+  notice_text: string
+  notice_type: string
+}
 
 export default function ActionPanel({ selectedMatches, loading }: ActionPanelProps) {
   const [showReview, setShowReview] = useState(false)
-  const [platform, setPlatform] = useState<Platform>('Meta')
+  const [platform, setPlatform] = useState<Platform | ''>('')
   const [victimName, setVictimName] = useState('')
+  const [preview, setPreview] = useState<NoticePreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [dispatchLoading, setDispatchLoading] = useState(false)
   const [dispatchMessage, setDispatchMessage] = useState('')
   const [dispatchError, setDispatchError] = useState('')
@@ -24,27 +31,52 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
   const count = selectedMatches.length
   const ready = count > 0 && !loading
   const missingEvidence = selectedMatches.some(match => !match.hash_signature)
+  const canReviewNotice = ready && count === 1
+
+  const openReview = () => {
+    setDispatchError('')
+    setDispatchMessage('')
+    setPlatform('')
+    setPreview(null)
+    setShowReview(true)
+  }
+
+  const requestPreview = async () => {
+    if (count !== 1 || !platform || missingEvidence || previewLoading) return
+    setPreviewLoading(true)
+    setPreview(null)
+    setDispatchError('')
+    try {
+      const match = selectedMatches[0]
+      const result = await previewTakedown(
+        match.url,
+        platform,
+        victimName.trim() || 'Aggrieved Individual',
+        match.hash_signature as string,
+      )
+      setPreview(result)
+    } catch (error) {
+      setDispatchError(error instanceof Error ? error.message : 'Could not prepare the notice preview.')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   const confirmDispatch = async () => {
-    if (!count || missingEvidence || dispatchLoading) return
+    if (!preview || count !== 1 || !platform || missingEvidence || dispatchLoading) return
     setDispatchLoading(true)
     setDispatchError('')
     setDispatchMessage('')
     try {
-      const results = []
-      // Sequential requests make it clear which notice was accepted before
-      // continuing to the next URL; a failure stops the batch immediately.
-      for (const match of selectedMatches) {
-        const result = await dispatchTakedown(
-          match.url,
-          platform,
-          victimName.trim() || 'Aggrieved Individual',
-          match.hash_signature as string,
-        )
-        results.push(result)
-      }
+      const match = selectedMatches[0]
+      const result = await dispatchTakedown(
+        match.url,
+        platform,
+        victimName.trim() || 'Aggrieved Individual',
+        match.hash_signature as string,
+      )
       setDispatchMessage(
-        `Email provider accepted ${results.length} notice request(s). This does not mean the content has been removed.`,
+        `Email provider accepted the request for ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). This does not mean the content has been removed.`,
       )
       setShowReview(false)
     } catch (error) {
@@ -89,7 +121,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1800)
     } catch {
-      setDispatchError('Clipboard access was blocked by the browser. Select and copy the candidate details manually.')
+      setDispatchError('Clipboard access was blocked by the browser. Copy the candidate details manually.')
     }
   }
 
@@ -106,12 +138,14 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
         <div className="space-y-2">
           <button
             type="button"
-            onClick={() => { setDispatchError(''); setDispatchMessage(''); setShowReview(true) }}
-            disabled={!ready || dispatchLoading}
+            onClick={openReview}
+            disabled={!canReviewNotice || dispatchLoading}
             className="w-full py-2.5 px-3.5 rounded-lg font-medium text-xs text-left bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white"
           >
             <span className="block font-semibold">Review legal notice</span>
-            <span className="block text-[10px] opacity-80 mt-0.5">Nothing is sent until you confirm.</span>
+            <span className="block text-[10px] opacity-80 mt-0.5">
+              {count > 1 ? 'Select exactly one candidate for a notice.' : 'Nothing is sent until you preview and confirm.'}
+            </span>
           </button>
           {dispatchMessage && <p role="status" className="p-3 rounded-lg border border-emerald-800 bg-emerald-950/30 text-emerald-200 text-xs">{dispatchMessage}</p>}
           {dispatchError && (
@@ -149,39 +183,47 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
 
       {showReview && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="notice-review-title">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 sm:p-6 space-y-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5 sm:p-6 space-y-4">
             <div>
               <h2 id="notice-review-title" className="text-lg font-semibold text-white">Review before dispatch</h2>
-              <p className="text-sm text-slate-400 mt-1">Check every URL, recipient platform, name and evidence signature. This action sends real email when configured.</p>
+              <p className="text-sm text-slate-400 mt-1">Choose and verify the destination. Load the exact recipient and draft before confirming. This action sends real email when configured.</p>
+            </div>
+            <div className="rounded-lg border border-slate-800 p-3 space-y-1">
+              <p className="text-xs text-slate-200">{selectedMatches[0]?.domain} · {selectedMatches[0] ? (selectedMatches[0].similarity * 100).toFixed(1) : '0'}% similarity candidate</p>
+              <p className="text-[11px] text-slate-400 break-all">{selectedMatches[0]?.url}</p>
+              <p className="text-[10px] text-slate-500 break-all">Evidence signature: {selectedMatches[0]?.hash_signature || 'Missing signature'}</p>
             </div>
             <div className="space-y-1">
               <label htmlFor="complainant-name" className="block text-xs text-slate-300">Complainant name</label>
-              <input id="complainant-name" value={victimName} onChange={event => setVictimName(event.target.value)} maxLength={120} placeholder="Aggrieved Individual" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
+              <input id="complainant-name" value={victimName} onChange={event => { setVictimName(event.target.value); setPreview(null) }} maxLength={120} placeholder="Aggrieved Individual" className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white" />
             </div>
             <div className="space-y-1">
-              <label htmlFor="notice-platform" className="block text-xs text-slate-300">Destination platform</label>
-              <select id="notice-platform" value={platform} onChange={event => setPlatform(event.target.value as Platform)} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">
+              <label htmlFor="notice-platform" className="block text-xs text-slate-300">Destination platform — verify it matches the source</label>
+              <select id="notice-platform" value={platform} onChange={event => { setPlatform(event.target.value as Platform | ''); setPreview(null) }} className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white">
+                <option value="">Select destination…</option>
                 <option value="Meta">Meta</option>
                 <option value="Google">Google</option>
                 <option value="X">X</option>
                 <option value="TikTok">TikTok</option>
               </select>
             </div>
-            <div className="rounded-lg border border-slate-800 divide-y divide-slate-800">
-              {selectedMatches.map((match, index) => (
-                <div key={match.url} className="p-3 space-y-1">
-                  <p className="text-xs text-slate-200">{index + 1}. {match.domain} · {(match.similarity * 100).toFixed(1)}% similarity</p>
-                  <p className="text-[11px] text-slate-400 break-all">{match.url}</p>
-                  <p className="text-[10px] text-slate-500 break-all">Evidence: {match.hash_signature || 'Missing signature'}</p>
-                </div>
-              ))}
-            </div>
-            {missingEvidence && <p role="alert" className="text-xs text-red-300">At least one selected candidate has no evidence signature. Run a fresh search before dispatching.</p>}
+            {missingEvidence && <p role="alert" className="text-xs text-red-300">This candidate has no evidence signature. Run a fresh search before dispatching.</p>}
             {dispatchError && <p role="alert" className="text-xs text-red-300">{dispatchError}</p>}
+            <button type="button" onClick={requestPreview} disabled={!platform || missingEvidence || previewLoading || dispatchLoading} className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50">
+              {previewLoading ? 'Preparing preview…' : 'Load recipient and notice preview'}
+            </button>
+            {preview && (
+              <section className="space-y-2 border border-slate-700 rounded-lg p-3">
+                <p className="text-sm font-semibold text-white">Recipient: <span className="font-normal">{preview.recipient}</span></p>
+                <p className="text-[11px] text-amber-200">Confirm this is the correct, independently verified grievance/contact address. Provider acceptance does not guarantee platform action.</p>
+                <label htmlFor="notice-text" className="block text-xs text-slate-300">Exact notice text to be sent</label>
+                <textarea id="notice-text" readOnly value={preview.notice_text} rows={10} className="w-full bg-slate-950 border border-slate-700 rounded-md p-3 text-xs text-slate-300 leading-relaxed" />
+              </section>
+            )}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-              <button type="button" onClick={() => setShowReview(false)} disabled={dispatchLoading} className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-50">Cancel</button>
-              <button type="button" onClick={confirmDispatch} disabled={dispatchLoading || missingEvidence} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
-                {dispatchLoading ? 'Sending…' : `Confirm and send ${count} notice(s)`}
+              <button type="button" onClick={() => setShowReview(false)} disabled={dispatchLoading || previewLoading} className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={confirmDispatch} disabled={!preview || dispatchLoading || previewLoading} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+                {dispatchLoading ? 'Sending…' : 'I reviewed the draft — send notice'}
               </button>
             </div>
           </div>
