@@ -302,6 +302,7 @@ async def dispatch_takedown_email(
 ) -> dict:
     """Dispatch a notice after a separate operator review/confirmation step in the UI."""
     _validate_http_url(request.target_url)
+    _validate_evidence_signature(request.hash_signature)
     recipient = _PLATFORM_RECIPIENTS[request.platform]
     if not recipient:
         raise HTTPException(
