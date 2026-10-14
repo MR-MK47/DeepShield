@@ -260,7 +260,7 @@ export default function LandingPage() {
 
             <div className="p-6 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-bold text-slate-100 font-display">Statutory Grievance Generation</h3>
+                <h3 className="text-base font-bold text-slate-100 font-display">Operator-reviewed notice drafts</h3>
                 <span className="text-xs font-mono text-blue-400">IT Rules 2021</span>
               </div>
               <p className="text-xs text-slate-400 leading-[1.7]">
@@ -287,7 +287,7 @@ export default function LandingPage() {
             <div className="text-xs font-bold font-mono text-slate-200">Meta / Facebook</div>
             <p className="text-xs font-mono text-slate-400 truncate">fbgoindia@support.facebook.com</p>
             <span className="inline-block text-[10px] font-mono text-blue-400 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-800">
-              Statutory 36h Takedown
+              Review notice draft
             </span>
           </div>
 
@@ -395,7 +395,7 @@ export default function LandingPage() {
           </div>
 
           <div className="space-y-2.5">
-            <h4 className="font-bold text-slate-200 font-display text-xs uppercase tracking-wider">Statutory Framework</h4>
+            <h4 className="font-bold text-slate-200 font-display text-xs uppercase tracking-wider">Legal considerations</h4>
             <ul className="space-y-2 font-mono text-[11px] text-slate-400">
               <li>Section 3(1)(b) IT Rules 2021</li>
               <li>Privacy claims depend on runtime and deployment</li>
