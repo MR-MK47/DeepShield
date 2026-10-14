@@ -1,7 +1,8 @@
 """Operator-reviewed takedown request email service.
 
-An accepted email-provider request is not proof that a platform has removed
-content. No successful result is returned when the Resend key is missing.
+Local test mode is the safe default and never sends email. Live delivery requires
+explicit NOTICE_EMAIL_MODE=resend plus a valid Resend API key and verified
+recipient configuration. Provider acceptance is not proof of removal.
 """
 from __future__ import annotations
 
@@ -16,11 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 class LegalEmail:
-    """Create and send a reviewable takedown request through Resend."""
+    """Create a reviewable notice and optionally submit it via Resend."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        configured = api_key if api_key is not None else os.getenv("RESEND_API_KEY", "")
-        self.api_key = configured.strip()
+    def __init__(self, api_key: Optional[str] = None, mode: Optional[str] = None):
+        self.api_key = (api_key if api_key is not None else os.getenv("RESEND_API_KEY", "")).strip()
+        self.mode = (mode or os.getenv("NOTICE_EMAIL_MODE", "mock")).strip().lower()
+        if self.mode not in {"mock", "resend"}:
+            raise ValueError("NOTICE_EMAIL_MODE must be either 'mock' or 'resend'.")
         if self.api_key:
             resend.api_key = self.api_key
 
@@ -72,19 +75,32 @@ This is a report template, not legal advice or a guarantee of removal timing.
         hash_signature: str,
         from_email: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Submit the reviewed notice to Resend and return provider acceptance."""
+        """Run a no-send local test or submit a notice to Resend."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if self.mode == "mock":
+            logger.warning(
+                "NOTICE TEST MODE: no email sent. platform=%s recipient_label=%s url=%s",
+                platform_name, to_email, content_url,
+            )
+            return {
+                "status": "simulated_not_sent",
+                "id": "local_test_no_email_sent",
+                "recipient": to_email,
+                "timestamp": now_iso,
+            }
+
         if not self.api_key or self.api_key.startswith("re_xxx") or self.api_key == "test_key":
             raise RuntimeError(
-                "Email delivery is not configured. Set a valid RESEND_API_KEY in backend/.env."
+                "Live email delivery is enabled but RESEND_API_KEY is missing or a placeholder."
             )
-        sender = from_email or os.getenv(
-            "RESEND_FROM_EMAIL", "DeepShield Legal <onboarding@resend.dev>"
-        )
         notice = self.generate_legal_notice(
             victim_name=victim_name,
             platform_name=platform_name,
             content_url=content_url,
             hash_signature=hash_signature,
+        )
+        sender = from_email or os.getenv(
+            "RESEND_FROM_EMAIL", "DeepShield Legal <onboarding@resend.dev>"
         )
         try:
             params: resend.Emails.SendParams = {
@@ -102,7 +118,7 @@ This is a report template, not legal advice or a guarantee of removal timing.
                 "status": "accepted_by_provider",
                 "id": str(dispatch_id),
                 "recipient": to_email,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_iso,
             }
         except Exception as exc:
             logger.error("Resend delivery error: %s", exc)
