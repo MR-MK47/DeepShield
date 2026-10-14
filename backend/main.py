@@ -62,10 +62,10 @@ app.add_middleware(
 
 Platform = Literal["Meta", "Google", "X", "TikTok"]
 _PLATFORM_RECIPIENTS = {
-    "Meta": os.getenv("META_GRIEVANCE_EMAIL", "fbgoindia@support.facebook.com"),
-    "Google": os.getenv("GOOGLE_ABUSE_EMAIL", "abuse@google.com"),
-    "X": os.getenv("X_ABUSE_EMAIL", "abuse@x.com"),
-    "TikTok": os.getenv("TIKTOK_LEGAL_EMAIL", "legal@tiktok.com"),
+    "Meta": os.getenv("META_GRIEVANCE_EMAIL", "").strip(),
+    "Google": os.getenv("GOOGLE_ABUSE_EMAIL", "").strip(),
+    "X": os.getenv("X_ABUSE_EMAIL", "").strip(),
+    "TikTok": os.getenv("TIKTOK_LEGAL_EMAIL", "").strip(),
 }
 
 
@@ -266,6 +266,11 @@ async def dispatch_takedown_email(
     """Dispatch a notice after a separate operator review/confirmation step in the UI."""
     _validate_http_url(request.target_url)
     recipient = _PLATFORM_RECIPIENTS[request.platform]
+    if not recipient:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No verified recipient is configured for {request.platform}. Set the platform contact in backend/.env after checking the official contact details.",
+        )
     try:
         dispatch_result = legal_email_service.send_notice(
             to_email=recipient,
