@@ -49,7 +49,7 @@ def test_generate_legal_notice_is_a_reviewable_request():
 
 
 def test_send_notice_refuses_missing_or_placeholder_api_key():
-    service = LegalEmail(api_key="")
+    service = LegalEmail(api_key="", mode="resend")
     with pytest.raises(RuntimeError, match="not configured"):
         service.send_notice(
             to_email="grievance@example.test",
