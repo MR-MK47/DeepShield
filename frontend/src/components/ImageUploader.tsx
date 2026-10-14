@@ -20,6 +20,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart, onScanEnd }
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [queryText, setQueryText] = useState('')
   const [threshold, setThreshold] = useState<number>(0.30)
+  const [saveHistory, setSaveHistory] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -83,7 +84,7 @@ export default function ImageUploader({ onMatchesFound, onScanStart, onScanEnd }
       const analyzeRes = await analyzeImage(selectedFile)
       setProgress(50)
 
-      const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold)
+      const matches = await searchMatches(analyzeRes.vector, queryText || undefined, threshold, saveHistory)
       setProgress(90)
 
       setProgress(100)
@@ -210,6 +211,19 @@ export default function ImageUploader({ onMatchesFound, onScanStart, onScanEnd }
           </div>
         </div>
       </div>
+
+      <label className="flex items-start gap-2 text-xs text-slate-300">
+        <input
+          type="checkbox"
+          checked={saveHistory}
+          onChange={(event) => setSaveHistory(event.target.checked)}
+          disabled={loading}
+          className="mt-0.5 accent-blue-500"
+        />
+        <span>
+          Save these results to my account history (requires sign-in). Only candidate URLs, scores and evidence signatures are saved — not the uploaded photo or face vector.
+        </span>
+      </label>
 
       {/* Submit Action Button */}
       <button
