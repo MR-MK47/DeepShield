@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+import main
 from main import app, auth_service
 from services.legal_email import LegalEmail
 
@@ -76,7 +77,8 @@ def test_takedown_endpoint_requires_operator_authentication():
     assert response.status_code == 401
 
 
-def test_takedown_endpoint_uses_mocked_provider_and_auth():
+def test_takedown_endpoint_uses_mocked_provider_and_auth(monkeypatch):
+    monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "Meta", "meta-test-recipient@example.test")
     mocked_result = {
         "status": "accepted_by_provider",
         "id": "mock-id-123",
@@ -97,7 +99,7 @@ def test_takedown_endpoint_uses_mocked_provider_and_auth():
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["status"] == "accepted_by_provider"
-    assert body["recipient"] == "fbgoindia@support.facebook.com"
+    assert body["recipient"] == "meta-test-recipient@example.test"
     send.assert_called_once()
 
 
@@ -116,7 +118,8 @@ def test_unknown_platform_is_rejected_not_sent_to_fallback():
     send.assert_not_called()
 
 
-def test_provider_error_is_returned_as_gateway_error():
+def test_provider_error_is_returned_as_gateway_error(monkeypatch):
+    monkeypatch.setitem(main._PLATFORM_RECIPIENTS, "TikTok", "tiktok-test-recipient@example.test")
     with patch("main.legal_email_service.send_notice", side_effect=RuntimeError("provider unavailable")):
         response = client.post(
             "/api/takedown/email",
