@@ -114,7 +114,7 @@ export async function previewTakedown(
   platform: string,
   victimName: string,
   hashSignature: string
-): Promise<{ preview_id: string; recipient: string; notice_text: string; notice_type: string; expires_in_seconds: number }> {
+): Promise<{ preview_id: string; recipient: string; delivery_mode: 'mock' | 'resend'; notice_text: string; notice_type: string; expires_in_seconds: number }> {
   const response = await fetch(`${API_BASE}/api/takedown/preview`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
