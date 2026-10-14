@@ -17,7 +17,12 @@ const checks = [
     const api = read('src/lib/api.ts')
     return ['analyzeImage', 'searchMatches', 'dispatchTakedown', 'generateDossier'].every(name => api.includes('function ' + name))
   }],
-  ['legal notice requires confirmation', () => read('src/components/ActionPanel.tsx').includes('I reviewed the draft — send notice') && read('src/components/ActionPanel.tsx').includes('Load recipient and notice preview')],
+  ['legal notice requires preview and explicit confirmation', () => read('src/components/ActionPanel.tsx').includes('I reviewed the draft — send email') && read('src/components/ActionPanel.tsx').includes('Load recipient and notice preview')],
+  ['website contact discovery, editable recipient, and portal modal are wired', () => {
+    const panel = read('src/components/ActionPanel.tsx')
+    const api = read('src/lib/api.ts')
+    return panel.includes('id="notice-recipient"') && panel.includes('createPortal') && panel.includes('Search public contacts again') && api.includes('discoverContactEmails') && !panel.includes('<option value="Meta">')
+  }],
   ['notice and dossier API calls attach operator authorization', () => {
     const api = read('src/lib/api.ts')
     return api.includes('authHeaders') && api.includes('/api/takedown/email') && api.includes('/api/dossier')
