@@ -127,6 +127,22 @@ export async function searchMatches(
   return (await response.json()) as Match[]
 }
 
+export interface EmailTestResult {
+  status: 'accepted_by_smtp'
+  recipient: string
+  timestamp: string
+  message_id: string
+}
+
+export async function sendTestEmail(): Promise<EmailTestResult> {
+  const response = await fetch(`${API_BASE}/api/email/test`, {
+    method: 'POST',
+    headers: authHeaders(),
+  })
+  if (!response.ok) throw await responseError(response, `Test email failed (${response.status}).`)
+  return (await response.json()) as EmailTestResult
+}
+
 export async function discoverContactEmails(
   targetUrl: string
 ): Promise<{ domain: string; contacts: ContactSuggestion[]; suggested_email: string | null }> {
@@ -144,7 +160,7 @@ export async function previewTakedown(
   recipient: string,
   victimName: string,
   hashSignature: string
-): Promise<{ preview_id: string; recipient: string; target_domain: string; delivery_mode: 'mock' | 'resend'; notice_text: string; notice_type: string; expires_in_seconds: number }> {
+): Promise<{ preview_id: string; recipient: string; target_domain: string; delivery_mode: 'mock' | 'resend' | 'smtp'; notice_text: string; notice_type: string; expires_in_seconds: number }> {
   const response = await fetch(`${API_BASE}/api/takedown/preview`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),

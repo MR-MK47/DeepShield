@@ -21,7 +21,7 @@ interface NoticePreview {
   preview_id: string
   recipient: string
   target_domain: string
-  delivery_mode: 'mock' | 'resend'
+  delivery_mode: 'mock' | 'resend' | 'smtp'
   notice_text: string
   notice_type: string
 }
@@ -144,8 +144,10 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
       const result = await dispatchTakedown(preview.preview_id)
       setDispatchMessage(
         result.status === 'simulated_not_sent'
-          ? 'Local test mode completed. No email was sent. To send real email, set NOTICE_EMAIL_MODE=resend and configure a valid Resend API key and verified sender domain.'
-          : `Resend accepted the email for delivery to ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). Check your Resend dashboard for delivery status; acceptance does not mean the website has removed the content.`,
+          ? 'Local test mode completed. No email was sent. To send a real email through your own mailbox, configure SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL, then set NOTICE_EMAIL_MODE=smtp.'
+          : result.status === 'accepted_by_smtp'
+            ? `Your SMTP server accepted the email to ${result.recipient} (Message ID: ${result.dispatch_id || 'not provided'}). Check the recipient inbox and spam/junk folder. SMTP acceptance does not prove final inbox delivery or content removal.`
+            : `Resend accepted the email for delivery to ${result.recipient} (reference: ${result.dispatch_id || 'not provided'}). Check your Resend dashboard for delivery status; acceptance does not mean the website has removed the content.`,
       )
       closeReview()
     } catch (error) {
@@ -377,9 +379,13 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
                   <p className="text-[11px] text-amber-200">
                     Local test mode is active. Confirming exercises the workflow only; no email will be sent.
                   </p>
+                ) : preview.delivery_mode === 'smtp' ? (
+                  <p className="text-[11px] text-amber-200">
+                    This uses the mailbox configured in backend/.env. Verify the recipient and draft before sending. The SMTP server&apos;s acceptance is not a guarantee of final inbox placement.
+                  </p>
                 ) : (
                   <p className="text-[11px] text-amber-200">
-                    Verify the address and draft. Resend must have a verified sender domain and valid API key. Provider acceptance does not guarantee delivery or content removal.
+                    Verify the address and draft. Resend requires a verified sender domain for external recipients. Provider acceptance does not guarantee delivery or content removal.
                   </p>
                 )}
                 <label htmlFor="notice-text" className="block text-xs text-slate-200">Exact notice text to be sent</label>
@@ -408,7 +414,7 @@ export default function ActionPanel({ selectedMatches, loading }: ActionPanelPro
                 disabled={!preview || dispatchLoading || previewLoading}
                 className="border border-blue-500 bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
               >
-                {dispatchLoading ? 'Submitting to Resend…' : preview?.delivery_mode === 'mock' ? 'Confirm test run — no email sent' : 'I reviewed the draft — send email'}
+                {dispatchLoading ? (preview?.delivery_mode === 'smtp' ? 'Submitting via SMTP…' : 'Submitting email…') : preview?.delivery_mode === 'mock' ? 'Confirm test run — no email sent' : 'I reviewed the draft — send email'}
               </button>
             </div>
           </div>

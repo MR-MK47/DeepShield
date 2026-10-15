@@ -1,14 +1,19 @@
-"""Operator-reviewed takedown request email service.
+"""Operator-reviewed notices via Resend or authenticated mailbox SMTP.
 
-Local test mode is the safe default and never sends email. Live delivery requires
-explicit NOTICE_EMAIL_MODE=resend plus a valid Resend API key and verified
-recipient configuration. Provider acceptance is not proof of removal.
+Local test mode is the safe default and never sends email. Explicit SMTP mode
+supports a real inbox test and operator-reviewed notice delivery using settings
+stored in the local environment. Provider/server acceptance is not proof of
+final inbox placement or content removal.
 """
 from __future__ import annotations
 
 import logging
 import os
+import smtplib
+import ssl
 from datetime import datetime, timezone
+from email.message import EmailMessage
+from email.utils import make_msgid
 from typing import Dict, Optional
 
 import resend
@@ -22,10 +27,21 @@ class LegalEmail:
     def __init__(self, api_key: Optional[str] = None, mode: Optional[str] = None):
         self.api_key = (api_key if api_key is not None else os.getenv("RESEND_API_KEY", "")).strip()
         self.mode = (mode or os.getenv("NOTICE_EMAIL_MODE") or "mock").strip().lower()
-        if self.mode not in {"mock", "resend"}:
-            raise ValueError("NOTICE_EMAIL_MODE must be either 'mock' or 'resend'.")
+        if self.mode not in {"mock", "resend", "smtp"}:
+            raise ValueError("NOTICE_EMAIL_MODE must be either 'mock', 'resend', or 'smtp'.")
         if self.api_key:
             resend.api_key = self.api_key
+
+        self.smtp_host = os.getenv("SMTP_HOST", "").strip()
+        try:
+            self.smtp_port = int(os.getenv("SMTP_PORT", "587").strip())
+        except ValueError as exc:
+            raise ValueError("SMTP_PORT must be an integer.") from exc
+        self.smtp_username = os.getenv("SMTP_USERNAME", "").strip()
+        self.smtp_password = os.getenv("SMTP_PASSWORD", "").replace(" ", "").strip()
+        self.smtp_from_email = (
+            os.getenv("SMTP_FROM_EMAIL", "").strip() or self.smtp_username
+        )
 
     def generate_legal_notice(
         self,
@@ -79,7 +95,7 @@ This is a report template, not legal advice or a guarantee of removal timing.
         hash_signature: str,
         from_email: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Run a no-send local test or submit a notice to Resend."""
+        """Run a no-send local test or submit a notice using SMTP or Resend."""
         now_iso = datetime.now(timezone.utc).isoformat()
         if self.mode == "mock":
             logger.warning(
@@ -93,10 +109,30 @@ This is a report template, not legal advice or a guarantee of removal timing.
                 "timestamp": now_iso,
             }
 
+        notice = self.generate_legal_notice(
+            victim_name=victim_name,
+            platform_name=platform_name,
+            content_url=content_url,
+            hash_signature=hash_signature,
+        )
+        if self.mode == "smtp":
+            message_id = self._send_smtp(
+                to_email=to_email,
+                subject=f"Request for review of reported content - {platform_name}",
+                body=notice,
+            )
+            return {
+                "status": "accepted_by_smtp",
+                "id": message_id,
+                "recipient": to_email,
+                "timestamp": now_iso,
+            }
+
         if not self.api_key or self.api_key.startswith("re_xxx") or self.api_key == "test_key":
             raise RuntimeError(
-                "Live email delivery is enabled but RESEND_API_KEY is missing or a placeholder."
+                "Resend delivery is enabled but RESEND_API_KEY is missing or a placeholder."
             )
+        # In Resend mode, only send from a verified domain for external recipients.
         notice = self.generate_legal_notice(
             victim_name=victim_name,
             platform_name=platform_name,
@@ -131,3 +167,77 @@ This is a report template, not legal advice or a guarantee of removal timing.
         except Exception as exc:
             logger.error("Resend delivery error: %s", exc)
             raise RuntimeError(f"Email provider could not accept the notice: {exc}") from exc
+
+    def send_test_email(self, to_email: str, operator_name: str) -> Dict[str, str]:
+        """Send one real test email to the signed-in operator via configured SMTP."""
+        if self.mode != "smtp":
+            raise RuntimeError(
+                "Test email requires NOTICE_EMAIL_MODE=smtp and valid SMTP settings."
+            )
+        recipient = to_email.strip()
+        if not recipient or "@" not in recipient:
+            raise RuntimeError("The signed-in operator account does not have a valid email address.")
+        sent_at = datetime.now(timezone.utc).isoformat()
+        body = (
+            "DeepShield SMTP delivery test\n\n"
+            f"Hello {operator_name},\n\n"
+            "This message was submitted by DeepShield using the SMTP server configured "
+            "in your local backend environment. If you receive it in this mailbox, "
+            "the application's authenticated SMTP delivery path is working.\n\n"
+            f"Sent at (UTC): {sent_at}\n"
+            "Note: SMTP server acceptance does not guarantee inbox placement; check spam "
+            "or junk folders if it is not visible in the inbox."
+        )
+        message_id = self._send_smtp(
+            to_email=recipient,
+            subject="DeepShield — SMTP delivery test",
+            body=body,
+        )
+        return {
+            "status": "accepted_by_smtp",
+            "id": message_id,
+            "recipient": recipient,
+            "timestamp": sent_at,
+        }
+
+    def _send_smtp(self, to_email: str, subject: str, body: str) -> str:
+        """Submit a single message over authenticated STARTTLS or implicit-TLS SMTP."""
+        if not self.smtp_host or not self.smtp_username or not self.smtp_password:
+            raise RuntimeError(
+                "SMTP delivery needs SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD in backend/.env."
+            )
+        if not 1 <= self.smtp_port <= 65535:
+            raise RuntimeError("SMTP_PORT must be between 1 and 65535.")
+        sender = self.smtp_from_email
+        if not sender or "@" not in sender:
+            raise RuntimeError("Set SMTP_FROM_EMAIL to an address permitted by your SMTP account.")
+
+        message = EmailMessage()
+        message["From"] = sender
+        message["To"] = to_email
+        message["Subject"] = subject
+        message["Message-ID"] = make_msgid(domain=None)
+        message.set_content(body)
+        context = ssl.create_default_context()
+
+        try:
+            if self.smtp_port == 465:
+                with smtplib.SMTP_SSL(
+                    self.smtp_host, self.smtp_port, timeout=20, context=context
+                ) as server:
+                    server.login(self.smtp_username, self.smtp_password)
+                    server.send_message(message)
+            else:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    server.ehlo()
+                    server.login(self.smtp_username, self.smtp_password)
+                    server.send_message(message)
+        except (OSError, smtplib.SMTPException) as exc:
+            logger.warning("SMTP submission failed: %s", exc)
+            raise RuntimeError(
+                f"SMTP server could not accept the email: {exc}"
+            ) from exc
+
+        return str(message["Message-ID"])
