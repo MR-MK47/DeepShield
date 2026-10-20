@@ -1,6 +1,10 @@
 @echo off
 setlocal
 
+REM Ensure current working directory is the folder containing run.bat
+set "ROOT_DIR=%~dp0"
+cd /d "%ROOT_DIR%"
+
 echo ========================================================
 echo        DeepShield - One-Click Launcher and Setup
 echo ========================================================
@@ -47,32 +51,38 @@ if not exist "frontend\.env.local" (
     copy "frontend\.env.example" "frontend\.env.local" >nul
 )
 
-REM 5. Setup Python virtual environment if missing
-if not exist "backend\venv\Scripts\python.exe" (
+REM 5. Setup Python virtual environment if missing or incomplete
+if not exist "backend\venv\Scripts\uvicorn.exe" (
+    echo [INFO] Virtual environment or packages missing. Preparing backend\venv...
+    if exist "backend\venv" (
+        echo [INFO] Cleaning up incomplete venv...
+        rmdir /s /q "backend\venv"
+    )
     echo [INFO] Creating Python virtual environment in backend\venv...
     %PYCMD% -m venv backend\venv
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to create Python virtual environment.
+        echo Please ensure Python 3.10+ is properly installed.
         pause
         exit /b 1
     )
     echo [INFO] Installing backend dependencies...
-    backend\venv\Scripts\python.exe -m pip install --upgrade pip
-    backend\venv\Scripts\pip.exe install -r backend\requirements.txt
+    "backend\venv\Scripts\python.exe" -m pip install --upgrade pip
+    "backend\venv\Scripts\pip.exe" install -r backend\requirements.txt
     if %errorlevel% neq 0 (
         echo.
         echo [WARNING] Full requirements failed - InsightFace C++ build tools missing.
         echo [INFO] Installing core lightweight dependencies - pHash fallback mode...
-        backend\venv\Scripts\pip.exe install -r backend\requirements-core.txt
+        "backend\venv\Scripts\pip.exe" install -r backend\requirements-core.txt
     )
 )
 
 REM 6. Setup Frontend dependencies if missing
 if not exist "frontend\node_modules" (
     echo [INFO] Installing frontend npm packages - this may take a minute...
-    cd frontend
+    cd /d "%ROOT_DIR%frontend"
     call npm install
-    cd ..
+    cd /d "%ROOT_DIR%"
 )
 
 echo.
@@ -82,11 +92,11 @@ echo Starting DeepShield Backend - FastAPI and Frontend - Next.js...
 echo ========================================================
 echo.
 
-REM Start the FastAPI backend in a new window
-start "DeepShield Backend" cmd /k "cd backend && call venv\Scripts\activate.bat && uvicorn main:app --reload --port 8000"
+REM Start the FastAPI backend in a new window using python -m uvicorn
+start "DeepShield Backend" cmd /k "cd /d "%ROOT_DIR%backend" && "%ROOT_DIR%backend\venv\Scripts\python.exe" -m uvicorn main:app --reload --port 8000"
 
 REM Start the Next.js frontend in a new window
-start "DeepShield Frontend" cmd /k "cd frontend && npm run dev"
+start "DeepShield Frontend" cmd /k "cd /d "%ROOT_DIR%frontend" && npm run dev"
 
 echo DeepShield is booting up!
 echo - Frontend Dashboard: http://localhost:3000
