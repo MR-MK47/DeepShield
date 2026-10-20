@@ -10,22 +10,29 @@ echo        DeepShield - One-Click Launcher and Setup
 echo ========================================================
 echo.
 
-REM 1. Detect Python command
+REM 1. Detect working Python command
 set "PYCMD="
-where python >nul 2>nul
+python --version >nul 2>nul
 if %errorlevel% equ 0 (
     set "PYCMD=python"
 ) else (
-    where py >nul 2>nul
+    py --version >nul 2>nul
     if %errorlevel% equ 0 (
         set "PYCMD=py"
     )
 )
 
 if "%PYCMD%"=="" (
-    echo [ERROR] Python is not found in your PATH!
-    echo Please install Python 3.10 or 3.11 from https://www.python.org/
-    echo Make sure to check Add Python to PATH during installation.
+    echo [ERROR] Python is not installed on this PC!
+    echo.
+    echo Windows only has the Microsoft Store shortcut, not the actual Python runtime.
+    echo.
+    echo Quick fix (run in PowerShell or CMD):
+    echo   winget install Python.Python.3.11
+    echo.
+    echo Or download from: https://www.python.org/downloads/
+    echo (Be sure to check "Add python.exe to PATH" during install)
+    echo.
     pause
     exit /b 1
 )
