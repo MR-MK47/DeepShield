@@ -15,8 +15,7 @@ DeepShield is a prototype that helps an operator look for public images resembli
 - [Technology stack](#technology-stack)
 - [Repository layout](#repository-layout)
 - [Prerequisites](#prerequisites)
-- [Quick start on Windows](#quick-start-on-windows)
-- [Quick start on macOS and Linux](#quick-start-on-macos-and-linux)
+- [Running on Any PC (1-Click, Docker, or Manual)](#running-on-any-pc)
 - [Environment configuration](#environment-configuration)
 - [Email delivery and test email](#email-delivery-and-test-email)
 - [HTTP API reference](#http-api-reference)
@@ -148,78 +147,97 @@ DeepShield/
 - If using real ArcFace inference, InsightFace may need to download its model files at first analysis. For a quick offline-safe test, the pHash fallback can be enabled.
 - To send actual email: SMTP credentials for a mailbox you control, or a Resend API key **and** a sender address on a domain verified in Resend. An API key alone is not enough to send through a verified external sender.
 
-## Quick start on Windows
+## Running on Any PC
 
-Open PowerShell in the repository root.
+DeepShield can be run on any PC (Windows, macOS, Linux) using one of three methods:
 
-### 1. Set up the backend
+### Option 1: 1-Click Smart Launcher (Recommended)
 
+The repository includes smart launcher scripts that automatically detect missing virtual environments, install required Python and npm dependencies, create default `.env` files if missing, and launch both the backend and frontend servers.
+
+#### On Windows:
+Double-click [run.bat](file:///c:/Users/mkazi/OneDrive/Desktop/DeepShield/run.bat) or run in PowerShell/CMD:
+```cmd
+run.bat
+```
+
+#### On macOS / Linux:
+Make the script executable and run:
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+---
+
+### Option 2: Run Anywhere with Docker (Zero Manual Installs)
+
+If you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine installed, you can launch the complete stack with a single command without needing local Python or Node installations:
+
+```bash
+docker compose up --build
+```
+
+- **Frontend Dashboard:** [http://localhost:3000](http://localhost:3000)
+- **Backend API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+### Option 3: Manual Step-by-Step Setup
+
+#### Prerequisites
+- **Python 3.10 or 3.11** installed.
+- **Node.js 18+ or 20 LTS** & npm installed.
+- Git.
+
+#### Windows Manual Setup
+
+**Terminal 1 — Backend (PowerShell):**
 ```powershell
 cd backend
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+
+# Try installing full requirements (with InsightFace)
 pip install -r requirements.txt
+# If InsightFace fails due to missing C++ build tools, install the core requirements instead:
+# pip install -r requirements-core.txt
 
-# Create .env only if it does not already exist.
 if (!(Test-Path .env)) { Copy-Item .env.example .env }
-```
-
-Open `backend/.env`, review the settings in [Environment configuration](#environment-configuration), then start the API:
-
-```powershell
 uvicorn main:app --reload --port 8000
 ```
 
-The API health route is [http://localhost:8000/api/health](http://localhost:8000/api/health). Interactive OpenAPI documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
-
-### 2. Set up the frontend
-
-Open a **second** PowerShell window at the repository root:
-
+**Terminal 2 — Frontend (PowerShell):**
 ```powershell
 cd frontend
-npm ci
-
-# Create .env.local only if it does not already exist.
 if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
-
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+#### macOS & Linux Manual Setup
 
-### Optional: start both windows
-
-After the backend virtual environment and dependencies are installed, and the frontend dependencies are installed, run `run.bat` from the repository root. It opens the backend and frontend in separate terminal windows. It is a convenience launcher, not an installer; configure `.env` first.
-
-## Quick start on macOS and Linux
-
-Backend terminal:
-
+**Terminal 1 — Backend:**
 ```bash
 cd backend
-python3.11 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-
-# Preserve an existing environment file.
+pip install --upgrade pip
+pip install -r requirements.txt || pip install -r requirements-core.txt
 [ -f .env ] || cp .env.example .env
-
 uvicorn main:app --reload --port 8000
 ```
 
-Frontend terminal, from the repository root:
-
+**Terminal 2 — Frontend:**
 ```bash
 cd frontend
-npm ci
 [ -f .env.local ] || cp .env.example .env.local
+npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The default frontend API URL is `http://localhost:8000`.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Environment configuration
 

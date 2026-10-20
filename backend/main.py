@@ -13,9 +13,14 @@ import secrets
 import threading
 import time
 
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+_env_file = Path(__file__).resolve().parent / ".env"
+if _env_file.is_file():
+    load_dotenv(dotenv_path=_env_file)
+else:
+    load_dotenv()
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import urlparse
